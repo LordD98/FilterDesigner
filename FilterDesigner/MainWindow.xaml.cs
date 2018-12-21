@@ -11,11 +11,12 @@ namespace FilterDesigner
 {
 	// TODO:
 	// Rotate Components, Display Names
+	// Base move on absolute values of Component, not on relative movements
 
 	public partial class MainWindow : Window
 	{
 		public static List<Component> allComponents;
-
+		
 		public MainWindow()
 		{
 			InitializeComponent();
@@ -222,6 +223,7 @@ namespace FilterDesigner
 				SnapsToDevicePixels = true
 			};
 			connectionMarker.MouseLeftButtonDown += Branchpoint_Click;
+			connectionMarker.MouseRightButtonDown += Branchpoint_RightClick;
 			X = x;
 			Y = y;
 			Panel.SetZIndex(connectionMarker, Component.baseCanvasMaxZIndex + 3);
@@ -246,9 +248,11 @@ namespace FilterDesigner
 					Y2 = y,
 					StrokeThickness = 2,
 					Stroke = Brushes.Red,
-					Visibility = Visibility.Hidden
+					Visibility = Visibility.Collapsed
 				};
-				newLine.MouseDown += (x, y) => net.Wire_Click(x as Line, y);
+				Net.wireDictionary.Add(newLine, net);
+				newLine.MouseLeftButtonDown += (x, y) => Net.wireDictionary[x as Line].Wire_Click(x as Line, y);
+				newLine.MouseRightButtonDown += (x, y) => Net.wireDictionary[x as Line].Wire_RightClick(x as Line, y);
 				Panel.SetZIndex(newLine, Component.baseCanvasMaxZIndex + 1);
 				baseCanvas.Children.Add(newLine);
 				wires.Add(newLine, LineEndPoint.Point1);
@@ -260,6 +264,22 @@ namespace FilterDesigner
 				Net.wireAttached = true;
 			}
 		}
+
+		public void Branchpoint_RightClick(object sender, MouseButtonEventArgs e)
+		{
+			string message = "";
+			message += $"Net: {net.Name}\n";
+			message += $"{wires.Count} ";
+			message += (wires.Count == 1) ? "Wire" : "Wires";
+			message += " attached\n";
+			if(net.connections.ContainsValue(this))
+			{
+				Component attachedComponent = net.components.Where((c) => net.connections[c] == this).First();
+				message += $"Attached Component: {attachedComponent.Name}\n";
+			}
+			message += $"X: {X}, Y: {Y}";
+			MessageBox.Show(message, "Branchpoint");
+		}
 	}
 
 	public class Net
@@ -268,8 +288,9 @@ namespace FilterDesigner
 
 		public List<Component> components { get; }
 		public List<Branchpoint> branchPoints;
-		public List<Line> wires;
+		public List<Line> wires;//Necessary? Maybe highlight net 
 		public Dictionary<Component, Branchpoint> connections;
+		public static Dictionary<Line, Net> wireDictionary = new Dictionary<Line, Net>();
 
 
 		public static bool wireAttached = false;   // Currently drawing a connection?
@@ -322,6 +343,7 @@ namespace FilterDesigner
 			component.NetB = net;
 		}
 
+		// TODO: Base move on absolute values of Component, not on relative movements
 		public void Move(Component component, NetPort port, double deltaX, double deltaY)
 		{
 			if(connections.ContainsKey(component))
@@ -339,7 +361,7 @@ namespace FilterDesigner
 			double rel = (clickPoint - new Point(sender.X1, sender.Y1)).Length / Math.Sqrt(dx * dx + dy * dy);
 			double point_x = sender.X1 + rel * (sender.X2 - sender.X1);
 			double point_y = sender.Y1 + rel * (sender.Y2 - sender.Y1);
-			Line newLine = new Line
+			Line splitLine = new Line
 			{
 				X1 = point_x,
 				Y1 = point_y,
@@ -348,25 +370,93 @@ namespace FilterDesigner
 				StrokeThickness = 2,
 				Stroke = Brushes.Red
 			};
-			newLine.MouseDown += (x, y) => Wire_Click(x as Line, y);
+			splitLine.MouseLeftButtonDown += (x, y) => wireDictionary[x as Line].Wire_Click(x as Line, y);
+			splitLine.MouseRightButtonDown += (x, y) => wireDictionary[x as Line].Wire_RightClick(x as Line, y);
 			sender.X2 = point_x;
 			sender.Y2 = point_y;
-			Panel.SetZIndex(newLine, Component.baseCanvasMaxZIndex + 1);
-			baseCanvas.Children.Add(newLine);
+			Panel.SetZIndex(splitLine, Component.baseCanvasMaxZIndex + 1);
+			baseCanvas.Children.Add(splitLine);
+
+			foreach(Branchpoint branchpoint in branchPoints)
+			{
+				if(branchpoint.wires.Keys.Contains(sender))
+				{
+					LineEndPoint lep = branchpoint.wires[sender];
+					if(lep == LineEndPoint.Point2)
+					{
+						branchpoint.wires.Remove(sender);
+						branchpoint.wires.Add(splitLine, LineEndPoint.Point2);
+					}
+				}
+			}
 
 			Branchpoint newBranchPoint = new Branchpoint(this, point_x, point_y);
-			newBranchPoint.wires.Add(newLine, LineEndPoint.Point1);
+			newBranchPoint.wires.Add(splitLine, LineEndPoint.Point1);
 			newBranchPoint.wires.Add(sender, LineEndPoint.Point2);
 			branchPoints.Add(newBranchPoint);
-			wires.Add(newLine);
+			wires.Add(splitLine);
+			Net.wireDictionary.Add(splitLine, this);
+
 			if(wireAttached)
 			{
+				wireAttached = false;
 				this.Merge(attachedNet);
 				newBranchPoint.wires.Add(attachedLine, LineEndPoint.Point2);
+				//attachedComponent?.SetNet(attachedPort, this);
 				attachedLine.X2 = point_x;
 				attachedLine.Y2 = point_y;
-				wireAttached = false;
+				attachedLine.Visibility = Visibility.Visible;
+				wireDictionary[attachedLine] = this;
 			}
+			else
+			{
+				attachedNet = this;
+				Line newLine = new Line
+				{
+					X1 = point_x,
+					Y1 = point_y,
+					X2 = point_x,
+					Y2 = point_y,
+					StrokeThickness = 2,
+					Stroke = Brushes.Red,
+					Visibility = Visibility.Collapsed
+				};
+				wireDictionary.Add(newLine, attachedNet);
+				newLine.MouseLeftButtonDown += (x, y) => wireDictionary[x as Line].Wire_Click(x as Line, y);
+				newLine.MouseRightButtonDown += (x, y) => wireDictionary[x as Line].Wire_RightClick(x as Line, y);
+				Panel.SetZIndex(newLine, Component.baseCanvasMaxZIndex + 1);
+				baseCanvas.Children.Add(newLine);
+				newBranchPoint.wires.Add(newLine, LineEndPoint.Point1);
+				attachedNet.wires.Add(newLine);
+				attachedNet.branchPoints.Add(newBranchPoint);
+
+				attachedComponent = null;
+				attachedLine = newLine;
+				wireAttached = true;
+			}
+		}
+
+		public void Wire_RightClick(Line sender, MouseButtonEventArgs e)
+		{
+			string message = "";
+			message += $"Net: {Name}\n";
+			if(components.Count > 0)
+			{
+				message += "Components: (";
+				foreach(Component component in components)
+				{
+					message += component.Name + ", ";
+				}
+				message = message.TrimEnd(',', ' ');
+				message += ")\n";
+			}
+			else
+			{
+				message += "Empty net\n";
+			}
+			message += $"X1: {sender.X1} Y1: {sender.Y1}\n";
+			message += $"X2: {sender.X2} Y2: {sender.Y2}\n";
+			MessageBox.Show(message, "Net");
 		}
 
 		// Manually attach a wire to an existing Branchpoint
@@ -395,7 +485,7 @@ namespace FilterDesigner
 			line.Visibility = Visibility.Visible;
 		}
 
-		public static void ClickConnect(Component newComponent, NetPort newPort, MouseButtonEventArgs e)
+		public static void NetPort_Click(Component newComponent, NetPort newPort, MouseButtonEventArgs e)
 		{
 			e.Handled = true;   // Stop event propagation to prevent the Port from hiding
 
@@ -417,7 +507,6 @@ namespace FilterDesigner
 					else
 					{
 						//MessageBox.Show("Nets are already connected to other nets!", "Nets already connected", MessageBoxButton.YesNoCancel);
-						// Merge Nets!
 						attachedNet.Merge(net);
 						newComponent.SetNet(newPort, attachedNet);
 					}
@@ -425,14 +514,7 @@ namespace FilterDesigner
 				else
 				{
 					net = attachedNet;
-					if(newPort == NetPort.A)
-					{
-						newComponent.NetA = net;
-					}
-					else
-					{
-						newComponent.NetB = net;
-					}
+					newComponent.SetNet(newPort, net);
 				}
 
 				(attachedLine.X2, attachedLine.Y2) = newComponent.GetPortCoordinates(newPort);
@@ -477,9 +559,11 @@ namespace FilterDesigner
 					Y2 = click_y,
 					StrokeThickness = 2,
 					Stroke = Brushes.Red,
-					Visibility = Visibility.Hidden
+					Visibility = Visibility.Collapsed
 				};
-				newLine.MouseDown += (x, y) => attachedNet.Wire_Click(x as Line, y);
+				wireDictionary.Add(newLine, attachedNet);
+				newLine.MouseLeftButtonDown += (x, y) => wireDictionary[x as Line].Wire_Click(x as Line, y);
+				newLine.MouseRightButtonDown += (x, y) => wireDictionary[x as Line].Wire_RightClick(x as Line, y);
 				Panel.SetZIndex(newLine, Component.baseCanvasMaxZIndex + 1);
 				baseCanvas.Children.Add(newLine);
 				newBranchPoint.wires.Add(newLine, LineEndPoint.Point1);
@@ -497,13 +581,23 @@ namespace FilterDesigner
 
 		private void Merge(Net net)
 		{
+			if(this == net) return;
 			foreach(Component component in net.components)
 			{
 				component.SetNet(component.GetPort(net), this);
+				//if(net.connections.ContainsKey(component))
+				//{
+				//	net.connections[component] = 
+				//}
 			}
+			net.branchPoints.ForEach((b) => b.net = this);
 			branchPoints.AddRange(net.branchPoints);
 			components.AddRange(net.components);
-			connections.Concat(net.connections);
+			connections = connections.Concat(net.connections).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+			foreach(Line line in net.wires)
+			{
+				wireDictionary[line] = this;
+			}
 			wires.AddRange(net.wires);
 		}
 
@@ -512,9 +606,9 @@ namespace FilterDesigner
 			if(wireAttached)
 			{
 				Point clickPoint = Mouse.GetPosition(baseCanvas);
-				attachedLine.Visibility = Visibility.Visible;
 				attachedLine.X2 = clickPoint.X;
 				attachedLine.Y2 = clickPoint.Y;
+				attachedLine.Visibility = Visibility.Visible;
 				Line newLine = new Line
 				{
 					X1 = attachedLine.X2,
@@ -523,9 +617,11 @@ namespace FilterDesigner
 					Y2 = clickPoint.Y,
 					StrokeThickness = 2,
 					Stroke = Brushes.Red,
-					Visibility = Visibility.Hidden
+					Visibility = Visibility.Collapsed
 				};
-				newLine.MouseDown += (x, y) => attachedNet.Wire_Click(x as Line, y);
+				wireDictionary.Add(newLine, attachedNet);
+				newLine.MouseLeftButtonDown += (x, y) => wireDictionary[x as Line].Wire_Click(x as Line, y);
+				newLine.MouseRightButtonDown += (x, y) => wireDictionary[x as Line].Wire_RightClick(x as Line, y);
 				Panel.SetZIndex(newLine, Component.baseCanvasMaxZIndex + 1);
 				baseCanvas.Children.Add(newLine);
 
@@ -627,12 +723,13 @@ namespace FilterDesigner
 				Width = 90,
 				Height = 20
 			};
-			VisualGroup.MouseLeftButtonDown += (x, y) => Symbol_MouseDown(this, y);
+			VisualGroup.MouseLeftButtonDown += (x, y) => Symbol_MouseLeftDown(this, y);
+			VisualGroup.MouseRightButtonDown += (x, y) => Symbol_RightClick(this, y);
 			Panel.SetZIndex(VisualGroup, 0);
 			PortA = new ConnectionPort();
 			PortB = new ConnectionPort();
-			PortA.MouseLeftButtonDown += (x, y) => Net.ClickConnect(this, NetPort.A, y);
-			PortB.MouseLeftButtonDown += (x, y) => Net.ClickConnect(this, NetPort.B, y);
+			PortA.MouseLeftButtonDown += (x, y) => Net.NetPort_Click(this, NetPort.A, y);
+			PortB.MouseLeftButtonDown += (x, y) => Net.NetPort_Click(this, NetPort.B, y);
 			MainWindow.allComponents.Add(this);
 		}
 
@@ -689,7 +786,7 @@ namespace FilterDesigner
 			}
 		}
 
-		protected static void Symbol_MouseDown(Component sender, MouseButtonEventArgs e)
+		protected static void Symbol_MouseLeftDown(Component sender, MouseButtonEventArgs e)
 		{
 			int oldZIndex = Panel.GetZIndex(sender.VisualGroup);
 			foreach(Canvas childCanvas in baseCanvas.Children.OfType<Canvas>())
@@ -700,7 +797,6 @@ namespace FilterDesigner
 					Panel.SetZIndex(childCanvas, currentZIndex - 1);
 				}
 			}
-			//baseCanvas.Children.AsQueryable().OfType<Canvas>().Count;
 			Panel.SetZIndex(sender.VisualGroup, baseCanvasMaxZIndex);
 			sender.VisualGroup.CaptureMouse();
 			movedComponent = sender;
@@ -734,7 +830,10 @@ namespace FilterDesigner
 				double mouseStepDeltaY = moveStartY + mouseStartDiffY - movedComponent.Y;
 
 				movedComponent.NetA?.Move(movedComponent, NetPort.A, mouseStepDeltaX, mouseStepDeltaY);
-				movedComponent.NetB?.Move(movedComponent, NetPort.B, mouseStepDeltaX, mouseStepDeltaY);
+				if(movedComponent.NetB != movedComponent.NetA)
+				{
+					movedComponent.NetB?.Move(movedComponent, NetPort.B, mouseStepDeltaX, mouseStepDeltaY);
+				}
 
 				movedComponent.X = moveStartX + mouseStartDiffX;        // Move component
 				movedComponent.Y = moveStartY + mouseStartDiffY;        //
@@ -744,6 +843,16 @@ namespace FilterDesigner
 				//
 				//movedComponent.GetPortCoordinate(NetPort.A);
 			}
+		}
+
+		public static void Symbol_RightClick(Component sender, MouseButtonEventArgs e)
+		{
+			string message = "";
+			message += $"Name: {sender.Name}\n";
+			message += $"NetA: {sender.NetA?.Name??"null"}\n";
+			message += $"NetB: {sender.NetB?.Name??"null"}\n";
+			message += $"X: {sender.X}, Y: {sender.Y}";
+			MessageBox.Show(message, "Component");
 		}
 
 		public abstract (double X, double Y) GetPortCoordinates(NetPort port);
@@ -1087,6 +1196,6 @@ namespace FilterDesigner
 
 	public class Impedance
 	{
-		public string value { get; set; }
+		public string Value { get; set; }
 	}
 }
