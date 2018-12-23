@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,7 +18,8 @@ namespace FilterDesigner
 	public partial class MainWindow : Window
 	{
 		public static List<Component> allComponents;
-		
+		public static ObservableCollection<Net> allNets;
+
 		public MainWindow()
 		{
 			InitializeComponent();
@@ -29,6 +31,9 @@ namespace FilterDesigner
 			canvas.MouseLeftButtonUp += Component.Symbol_MouseUp;
 			canvas.MouseMove += Component.Symbol_MouseMove;
 			allComponents = new List<Component>();
+			allNets = new ObservableCollection<Net>();
+			cbxNet1.ItemsSource = allNets;
+			cbxNet2.ItemsSource = allNets;
 
 			//Net GND = new Net("GND");
 			//Net U1 = new Net("U1");
@@ -39,15 +44,22 @@ namespace FilterDesigner
 			Resistor R2 = new Resistor("R2", 200, 100);
 			Resistor R_dash = new Resistor("R'", 150, 200);
 			Capacitor C1 = new Capacitor("C1", 300, 150);
-			Inductor I = new Inductor("L", 200, 300);
+			Inductor L = new Inductor("L", 200, 300);
 
 			//R1.Connect(U1, U_dash);
 			//R2.Connect(U_dash, U2);
 			//R_dash.Connect(U2, U1);
 			//C1.Connect(GND, U2);
-
+			
 			DrawAll();
-			//List<Path> paths = FindPaths(U1, GND);
+		}
+
+		private void BtnTest_Click(object sender, RoutedEventArgs e)
+		{
+			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+				return;
+			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
+			string impedance = GetImpedanceOfPaths(paths);
 		}
 
 		public void DrawAll()
@@ -65,7 +77,11 @@ namespace FilterDesigner
 			Net currentNet = A;
 			//Component source;
 			//List<Net> visitedNets = new List<Net>();	// Nets that are completed
-			Path currentPath = new Path();
+			Path currentPath = new Path
+			{
+				Start = A,
+				End = B
+			};
 			List<Net> currentNetOrder = new List<Net>	// Represents the current parse state 
 			{
 				A
@@ -126,11 +142,87 @@ namespace FilterDesigner
 
 			return paths;
 		}
+
+		public string GetImpedanceOfPaths(List<Path> paths)
+		{
+			if(paths.Count == 0)
+				return null;
+			string impedance = "";
+
+			if(paths.Count == 1)
+			{
+				return paths[0].GetImpedance();
+			}
+
+			Net startNet = paths[0].Start;
+			Net endNet = paths[0].End;
+
+			// Find all (intermediate) nets that are common to all Paths
+			List<Net> commonNets = new List<Net>();
+			foreach(Net intermediateNet in paths[0].GetIntermediateNets())
+			{
+				if(paths.All(p => p.ContainsNet(intermediateNet)))
+				{
+					commonNets.Add(intermediateNet);
+				}
+			}
+			commonNets.Add(endNet);
+			if(commonNets.Count == 1)   // No non-trivial common nets
+			{
+				// There are at least two completely independent List<Path>s
+				// Find all groups of paths
+				List<List<Path>> listListPaths = new List<List<Path>>();
+				foreach(Path path in paths)
+				{
+					int index = listListPaths.FindIndex(l => l.All(p => p.HasCommonNets(path)));
+					if(index != -1)
+					{
+						listListPaths[index].Add(path);
+					}
+					else
+					{
+						listListPaths.Add(new List<Path>());
+						listListPaths[listListPaths.Count-1].Add(path);
+					}
+				}
+
+				impedance += "1/(";
+				foreach(List<Path> lp in listListPaths)
+				{
+					impedance += $"1/({GetImpedanceOfPaths(lp)})+";
+				}
+				impedance = impedance.Remove(impedance.Length - 1, 1);
+				impedance += ")";
+			}
+			else
+			{
+				Net lastCommonNet = paths[0].Start;
+				foreach(Net commonNet in commonNets)
+				{
+					List<Path> stepPaths = new List<Path>();
+					foreach(Path p in paths)
+					{
+						Path subPath = p.SubPath(lastCommonNet, commonNet);
+						if(!stepPaths.Contains(subPath))
+						{
+							stepPaths.Add(subPath);
+						}
+					}
+					impedance += GetImpedanceOfPaths(stepPaths) + "+";
+					lastCommonNet = commonNet;
+				}
+				impedance = impedance.Remove(impedance.Length - 1, 1);
+			}
+			return impedance;
+		}
 	}
 
 	public class Path
 	{
 		public List<Component> Components { get; }
+
+		public Net Start { get; set; }
+		public Net End { get; set; }
 
 		public Path()
 		{
@@ -146,11 +238,95 @@ namespace FilterDesigner
 		public Path Copy()
 		{
 			Path copy = new Path();
+			copy.Start = Start;
+			copy.End = End;
 			foreach(Component component in Components)
 			{
 				copy.Add(component);
 			}
 			return copy;
+		}
+
+		public bool ContainsNet(Net net)
+		{
+			if(Components.Count < 2)
+				return net==Start || net==End;
+			return Components.Any(c => c.IsConnected(net));
+
+
+			//Component previous = Components[0];
+			//List<Component>.Enumerator enumerator = Components.GetEnumerator();
+			//enumerator.MoveNext();
+			//do
+			//{
+			//	if(enumerator.Current.IsConnected(net))
+			//	{
+			//		return true;
+			//	}
+			//} while(enumerator.MoveNext());
+			//return false;
+		}
+
+		public List<Net> GetIntermediateNets()
+		{
+			List<Net> nets = new List<Net>();
+			Net previousNet = Start;
+			foreach(Component component in Components)
+			{
+				if(component.OtherNet(previousNet) == End)
+				{
+					return nets;
+				}
+				nets.Add(component.OtherNet(previousNet));
+				previousNet = component.OtherNet(previousNet);
+			}
+			return nets;	// Shouldn't happen
+		}
+
+		public string GetImpedance()
+		{
+			string impedance = "";
+			foreach(Component component in Components)
+			{
+				impedance += component.GetValueStr() + "+";
+			}
+			if(impedance.Length > 0)
+				impedance = impedance.Remove(impedance.Length-1, 1);
+			return impedance;
+		}
+
+		public Path SubPath(Net start, Net end)
+		{
+			Path newPath = new Path();
+			int startIndex = Components.FindLastIndex(c => c.IsConnected(start));
+			int endIndex = Components.FindIndex(c => c.IsConnected(end));
+			newPath.Components.AddRange(Components.GetRange(startIndex, endIndex - startIndex + 1));
+			newPath.Start = start;
+			newPath.End = end;
+			return newPath;
+		}
+
+		public bool HasCommonNets(Path otherPath)
+		{
+			List<Net> nets = GetIntermediateNets();
+			List<Net> otherNets = otherPath.GetIntermediateNets();
+			return nets.Any(n => otherNets.Contains(n));
+		}
+
+		public override bool Equals(object otherPath)
+		{
+			if(!(otherPath is Path))
+				return false;
+			if(Components.Count != (otherPath as Path).Components.Count)
+				return false;
+			for(int i = 0; i<Components.Count; i++)
+			{
+				if(Components[i] != (otherPath as Path).Components[i])
+				{
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 
@@ -260,10 +436,28 @@ namespace FilterDesigner
 				}
 				else
 				{
-					if(this == Net.attachedLineOrigin && Net.wireAttached)
+					if(Net.wireAttached)
 					{
-						Net.CancelCurrentLine();
-						return;
+						bool cancel = false;
+						if(this == Net.attachedLineOrigin)		// Same Branchpoint clicked again
+						{
+							cancel = true;
+						}
+						else
+						{
+							foreach(Line line in wires.Keys)	// Don't add a wire twice
+							{
+								if(Net.attachedLineOrigin.wires.ContainsKey(line))
+								{
+									cancel = true;
+								}
+							}
+						}
+						if(cancel)
+						{
+							Net.CancelCurrentLine();
+							return;
+						}
 					}
 					net.Branchpoint_Connect(mousedownBranchpoint);
 				}
@@ -320,14 +514,15 @@ namespace FilterDesigner
 	public class Net
 	{
 		public string Name { get; set; }
+		public static readonly double WireThickness = 4;
+		public static readonly Brush WireColor = Brushes.Red;
 
 		public List<Component> Components { get; }
 		public List<Branchpoint> branchPoints;
-		public List<Line> wires;					//Necessary? Maybe highlight net 
+		public List<Line> wires;						//Necessary? Maybe highlight net 
 		public Dictionary<Component, List<Branchpoint>> connections;
 		public static Dictionary<Line, Net> wireDictionary = new Dictionary<Line, Net>();
-
-
+		
 		public static bool wireAttached = false;		// Currently drawing a connection?
 		public static Line attachedLine;				// Current line
 		public static Net attachedNet;					// Current net attached to line
@@ -335,7 +530,7 @@ namespace FilterDesigner
 
 		public static Canvas baseCanvas;
 
-		static int netCount = 0;	// Improve to account for unused Net
+		static int netCount = 0;	// Improve to account for deleted Nets
 
 		public Net() : this($"${netCount++}") { }
 
@@ -346,6 +541,7 @@ namespace FilterDesigner
 			branchPoints = new List<Branchpoint>();
 			wires = new List<Line>();
 			connections = new Dictionary<Component, List<Branchpoint>>();
+			MainWindow.allNets.Add(this);
 		}
 
 		public Component GetNextComponent(Component component)
@@ -369,6 +565,7 @@ namespace FilterDesigner
 			return null;
 		}
 
+		/*
 		// Necessary?
 		public void Connect(Net net, Component component)
 		{
@@ -404,6 +601,7 @@ namespace FilterDesigner
 			}
 			line.Visibility = Visibility.Visible;
 		}
+		*/
 
 		public Line NewWire(double x1, double y1, double x2, double y2)
 		{
@@ -413,8 +611,8 @@ namespace FilterDesigner
 				Y1 = y1,
 				X2 = x2,
 				Y2 = y2,
-				StrokeThickness = 2,
-				Stroke = Brushes.Red,
+				StrokeThickness = WireThickness,
+				Stroke = WireColor,
 				Visibility = Visibility.Collapsed
 			};
 			wires.Add(newLine);
@@ -480,7 +678,7 @@ namespace FilterDesigner
 			}
 		}
 
-		public void Wire_Click(Line sender, MouseButtonEventArgs e) // Splits Line
+		public void Wire_Click(Line sender, MouseButtonEventArgs e)
 		{
 			e.Handled = true;
 			Point clickPoint = Mouse.GetPosition(baseCanvas);
@@ -593,6 +791,7 @@ namespace FilterDesigner
 				wireDictionary[line] = this;
 			}
 			wires.AddRange(net.wires);
+			MainWindow.allNets.Remove(net);
 		}
 
 		public static void Canvas_LeftMouseDown(object sender, MouseButtonEventArgs e)
@@ -612,6 +811,11 @@ namespace FilterDesigner
 				attachedLine = newLine;
 				attachedLineOrigin = newBranchPoint;
 			}
+		}
+
+		public override string ToString()
+		{
+			return Name; 
 		}
 	}
 
@@ -965,6 +1169,11 @@ namespace FilterDesigner
 			}
 			return (x, y);
 		}
+
+		public override string ToString()
+		{
+			return Name;
+		}
 	}
 
 	public class Inductor : Component
@@ -1169,4 +1378,12 @@ namespace FilterDesigner
 	{
 		public string Value { get; set; }
 	}
+
+	//public static class ObervableCollectionExtension
+	//{
+	//	public static T Find<T>(this ObservableCollection<T> nets, Predicate<T> match)
+	//	{
+	//		return nets.ToList().Find(match);
+	//	}
+	//}
 }

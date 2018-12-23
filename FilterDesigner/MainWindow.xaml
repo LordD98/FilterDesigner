@@ -6,11 +6,27 @@
         xmlns:local="clr-namespace:FilterDesigner"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <Grid>
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition/>
+			<ColumnDefinition Width="100"/>
+		</Grid.ColumnDefinitions>
 		<Canvas x:Name="canvas" 
 				Margin="5,5,5,4.667" 
 				SnapsToDevicePixels="True" 
 				ClipToBounds="True" 
 				Background="#FFFAFAFA"/>
+		<Grid Grid.Column="1" Margin="0,0,5,0">
+			<Grid.RowDefinitions>
+				<RowDefinition/>
+				<RowDefinition/>
+				<RowDefinition Height="30"/>
+				<RowDefinition Height="30"/>
+				<RowDefinition Height="30"/>
+			</Grid.RowDefinitions>
+			<ComboBox x:Name="cbxNet1" Margin="0,5" Grid.Row="2"/>
+			<ComboBox x:Name="cbxNet2" Margin="0,5" Grid.Row="3"/>
+			<Button x:Name="btnTest" Content="Get Impedance" Margin="0,5" Click="BtnTest_Click" Grid.Row="4"/>
+		</Grid>
 	</Grid>
 </Window>
