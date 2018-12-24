@@ -30,6 +30,8 @@ namespace FilterDesigner
 			canvas.MouseRightButtonDown += (x, y) => Net.CancelCurrentLine();
 			canvas.MouseLeftButtonUp += Component.Symbol_MouseUp;
 			canvas.MouseMove += Component.Symbol_MouseMove;
+			//Toolbox.DataContext = Component;
+
 			allComponents = new List<Component>();
 			allNets = new ObservableCollection<Net>();
 			cbxNet1.ItemsSource = allNets;
@@ -874,7 +876,8 @@ namespace FilterDesigner
 			}
 		}
 
-		public const int WireThickness = 3;
+		public static double WireThickness = 3;
+		public static Brush LeadColor = Brushes.Black;
 
 		public abstract double PortA_MarginX { get; }   // Update for Rotation in Childs
 		public abstract double PortA_MarginY { get; }   //
@@ -1129,8 +1132,7 @@ namespace FilterDesigner
 				X2 = 90,
 				Y1 = 0,
 				Y2 = 0,
-				Fill = Brushes.Black,   // Dark Gray/Black/Red?
-				Stroke = Brushes.Black,
+				Stroke = LeadColor,
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
@@ -1223,8 +1225,7 @@ namespace FilterDesigner
 				X2 = 90,
 				Y1 = 0,
 				Y2 = 0,
-				Fill = Brushes.Black,   // Dark Gray/Black/Red?
-				Stroke = Brushes.Black,
+				Stroke = LeadColor,
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
@@ -1315,8 +1316,8 @@ namespace FilterDesigner
 			};
 			Rectangle capContent = new Rectangle
 			{
-				Height = border.Height,
-				Width = border.Width,
+				Width = 10,
+				Height = 40,
 				Fill = Brushes.White,
 				SnapsToDevicePixels = true
 			};
@@ -1326,8 +1327,7 @@ namespace FilterDesigner
 				X2 = 50,
 				Y1 = 0,
 				Y2 = 0,
-				Fill = Brushes.Black,   // Dark Gray/Black/Red?
-				Stroke = Brushes.Black,
+				Stroke = LeadColor,
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
@@ -1348,8 +1348,8 @@ namespace FilterDesigner
 			Canvas.SetTop(PortA, Y + ComponentMargins.Capacitor_PortA_Y);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Capacitor_PortB_X);
 			Canvas.SetTop(PortB, Y + ComponentMargins.Capacitor_PortB_Y);
-			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(border);
+			VisualGroup.Children.Add(leads);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);

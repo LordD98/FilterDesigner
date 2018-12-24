@@ -16,17 +16,92 @@
 				SnapsToDevicePixels="True" 
 				ClipToBounds="True" 
 				Background="#FFFAFAFA"/>
-		<Grid Grid.Column="1" Margin="0,0,5,0">
+		<Grid x:Name="Toolbox" Grid.Column="1" Margin="5,5,5,0">
 			<Grid.RowDefinitions>
 				<RowDefinition/>
 				<RowDefinition/>
+				<RowDefinition/>
+				<RowDefinition Height="2*"/>
 				<RowDefinition Height="30"/>
 				<RowDefinition Height="30"/>
 				<RowDefinition Height="30"/>
 			</Grid.RowDefinitions>
-			<ComboBox x:Name="cbxNet1" Margin="0,5" Grid.Row="2"/>
-			<ComboBox x:Name="cbxNet2" Margin="0,5" Grid.Row="3"/>
-			<Button x:Name="btnTest" Content="Get Impedance" Margin="0,5" Click="BtnTest_Click" Grid.Row="4"/>
+			<Button x:Name="btnResistor">
+				<Canvas>
+					<Rectangle
+						Canvas.Left="-25"
+						Canvas.Top="-10"
+						Panel.ZIndex="1"
+						Width = "50"
+						Height = "20"
+						Fill = "White"
+						Stroke = "Black"
+						StrokeThickness = "2"
+						SnapsToDevicePixels = "true"/>
+					<Line
+						Canvas.Left="-40"
+						Panel.ZIndex="0"
+						X1 = "0"
+						X2 = "80"
+						Y1 = "0"
+						Y2 = "0"
+						Stroke = "{x:Static local:Component.LeadColor}"
+						StrokeThickness = "{x:Static local:Component.WireThickness}"
+						SnapsToDevicePixels = "true" Width="80"/>
+				</Canvas>
+			</Button>
+			<Button x:Name="btnCapacitor" Grid.Row="1">
+				<Canvas>
+					<Border
+						Canvas.Left="-5"
+						Canvas.Top="-20.5"
+						Width="10" 
+						Height="40" 
+						BorderThickness="3, 0, 2.5, 0" 
+						BorderBrush="Black" 
+						SnapsToDevicePixels="True"
+						Panel.ZIndex="1">
+						<Rectangle Width="10" Height="40" Fill="White" SnapsToDevicePixels="True" Panel.ZIndex="2"/>
+					</Border>
+					<Line 
+						Canvas.Left="-25"
+						Canvas.Top="-0.5"
+						X1="0" 
+						Y1="0" 
+						X2="50" 
+						Y2="0" 
+						Stroke="{x:Static local:Component.LeadColor}"
+						StrokeThickness="{x:Static local:Component.WireThickness}"
+						Panel.ZIndex="0"/>
+				</Canvas>
+			</Button>
+			<Button x:Name="btnInductor" Grid.Row="2">
+				<Canvas>
+					<Rectangle
+						Canvas.Left="-25"
+						Canvas.Top="-10"
+						Panel.ZIndex="1"
+						Width = "50"
+						Height = "20"
+						Fill = "Black"
+						Stroke = "Black"
+						StrokeThickness = "2"
+						SnapsToDevicePixels = "true"/>
+					<Line
+						Canvas.Left="-40"
+						Panel.ZIndex="0"
+						X1 = "0"
+						X2 = "80"
+						Y1 = "0"
+						Y2 = "0"
+						Stroke = "{x:Static local:Component.LeadColor}"
+						StrokeThickness = "{x:Static local:Component.WireThickness}"
+						SnapsToDevicePixels = "true" Width="80"/>
+				</Canvas>
+			</Button>
+			<ComboBox x:Name="cbxNet1" Margin="0,5" Grid.Row="4"/>
+			<ComboBox x:Name="cbxNet2" Margin="0,5" Grid.Row="5"/>
+			<Button x:Name="btnTest" Content="Get Impedance" Margin="0,5" Click="BtnTest_Click" Grid.Row="6"/>
 		</Grid>
 	</Grid>
 </Window>
