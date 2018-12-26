@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,22 +15,38 @@ namespace FilterDesigner
 	// Rotate Components, Display Names
 	// Base move on absolute values of Component, not on relative movements
 	// Merge Branchpoints, Delete Lines and split nets
+	// GetSummands deep Search with recursion
 
 	public partial class MainWindow : Window
 	{
 		public static List<Component> allComponents;
 		public static ObservableCollection<Net> allNets;
 
+		private static Brush ButtonBackgroundBrush;
+
+		public enum ComponentType { None, Resistor, Capacitor, Inductor };
+		public static ComponentType ComponentToAdd = ComponentType.None;
+
 		public MainWindow()
 		{
+			string testString = @"(sef+sef+sef+s+ef/awd)/(1/(safs)+1/(1/(ad))+1/(1/(s)+1/(d)))";
+			List<string> sods = StringArithmetic.GetSecondOrderDenominators(testString);
+			StringArithmetic.MultiplyExpression
+
 			InitializeComponent();
 			Component.baseCanvas = canvas;
 			Net.baseCanvas = canvas;
 			Branchpoint.baseCanvas = canvas;
 			canvas.MouseLeftButtonDown += Net.Canvas_LeftMouseDown;
-			canvas.MouseRightButtonDown += (x, y) => Net.CancelCurrentLine();
+			canvas.MouseLeftButtonDown += PlaceComponent;
+			canvas.MouseRightButtonDown += (x, y) =>
+			{
+				SetIndicator(ComponentType.None);
+				Net.CancelCurrentLine();
+			};
 			canvas.MouseLeftButtonUp += Component.Symbol_MouseUp;
 			canvas.MouseMove += Component.Symbol_MouseMove;
+			ButtonBackgroundBrush = btnResistor.Background;
 			//Toolbox.DataContext = Component;
 
 			allComponents = new List<Component>();
@@ -42,35 +59,28 @@ namespace FilterDesigner
 			//Net U2 = new Net("U2");
 			//Net U_dash = new Net("U'");
 
-			Resistor R1 = new Resistor("R1", 100, 100);
-			Resistor R2 = new Resistor("R2", 200, 100);
-			Resistor R_dash = new Resistor("R'", 150, 200);
-			Capacitor C1 = new Capacitor("C1", 300, 150);
-			Inductor L = new Inductor("L", 200, 300);
+			//Resistor R1 = new Resistor("R1", 100, 100);
+			//Resistor R2 = new Resistor("R2", 200, 100);
+			//Resistor R_dash = new Resistor("R'", 150, 200);
+			//Capacitor C1 = new Capacitor("C1", 300, 150);
+			//Inductor L = new Inductor("L", 200, 300);
 
 			//R1.Connect(U1, U_dash);
 			//R2.Connect(U_dash, U2);
 			//R_dash.Connect(U2, U1);
 			//C1.Connect(GND, U2);
-			
-			DrawAll();
+
+			//DrawAll();
 		}
 
-		private void BtnTest_Click(object sender, RoutedEventArgs e)
+		public string Simplify(string expression)
 		{
-			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
-				return;
-			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
-			string impedance = GetImpedanceOfPaths(paths);
+			if(!expression.Contains('/'))
+				return expression;
+			//string pattern = @"";
+			return "";
 		}
 
-		public void DrawAll()
-		{
-			foreach(Component comp in allComponents)
-			{
-				comp.Draw();
-			}
-		}
 
 		public List<Path> FindPaths(Net A, Net B)
 		{
@@ -184,7 +194,7 @@ namespace FilterDesigner
 					else
 					{
 						listListPaths.Add(new List<Path>());
-						listListPaths[listListPaths.Count-1].Add(path);
+						listListPaths[listListPaths.Count - 1].Add(path);
 					}
 				}
 
@@ -217,6 +227,249 @@ namespace FilterDesigner
 			}
 			return impedance;
 		}
+
+		private void BtnTest_Click(object sender, RoutedEventArgs e)
+		{
+			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+				return;
+			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
+			string impedance = GetImpedanceOfPaths(paths);
+			tbResult.Text = impedance;
+			List<string> result = StringArithmetic.GetSummands(impedance);
+			string denom = StringArithmetic.GetDenominator(impedance);
+		}
+
+		public void DrawAll()
+		{
+			foreach(Component comp in allComponents)
+			{
+				comp.Draw();
+			}
+		}
+
+		private void BtnResistor_Click(object sender, RoutedEventArgs e)
+		{
+			if(ComponentToAdd == ComponentType.Resistor)
+			{
+				SetIndicator(ComponentType.None);
+			}
+			else
+			{
+				SetIndicator(ComponentType.Resistor);
+			}
+		}
+
+		private void BtnCapacitor_Click(object sender, RoutedEventArgs e)
+		{
+			if(ComponentToAdd == ComponentType.Capacitor)
+			{
+				SetIndicator(ComponentType.None);
+			}
+			else
+			{
+				SetIndicator(ComponentType.Capacitor);
+			}
+		}
+
+		private void BtnInductor_Click(object sender, RoutedEventArgs e)
+		{
+			if(ComponentToAdd == ComponentType.Inductor)
+			{
+				SetIndicator(ComponentType.None);
+			}
+			else
+			{
+				SetIndicator(ComponentType.Inductor);
+			}
+		}
+
+		public void SetIndicator(ComponentType type)
+		{
+			RectResistor.Fill = Brushes.Transparent;
+			RectCapacitor.Fill = Brushes.Transparent;
+			RectInductor.Fill = Brushes.Transparent;
+			switch(type)
+			{
+				case ComponentType.Resistor:
+					RectResistor.Fill = Brushes.Lime;
+					ComponentToAdd = ComponentType.Resistor;
+					break;
+				case ComponentType.Capacitor:
+					RectCapacitor.Fill = Brushes.Lime;
+					ComponentToAdd = ComponentType.Capacitor;
+					break;
+				case ComponentType.Inductor:
+					RectInductor.Fill = Brushes.Lime;
+					ComponentToAdd = ComponentType.Inductor;
+					break;
+				case ComponentType.None:
+					ComponentToAdd = ComponentType.None;
+					break;
+			}
+		}
+
+		private void PlaceComponent(object sender, MouseButtonEventArgs e)
+		{
+			if(!Net.wireAttached)
+			{
+				Point mouse = Mouse.GetPosition(canvas);
+				Component newComponent = null;
+				switch(ComponentToAdd)
+				{
+					case ComponentType.Resistor:
+						newComponent = new Resistor(mouse.X, mouse.Y);
+						break;
+					case ComponentType.Capacitor:
+						newComponent = new Capacitor(mouse.X, mouse.Y);
+						break;
+					case ComponentType.Inductor:
+						newComponent = new Inductor(mouse.X, mouse.Y);
+						break;
+					case ComponentType.None:
+						break;
+				}
+				newComponent?.Draw();
+			}
+		}
+	}
+
+	public static class StringArithmetic
+	{
+		public static List<string> GetSummands(string expression)
+		{
+			List<string> summands = new List<string>();
+			int openBrackets = 0;
+			int summandStartIndex = 0;
+			for(int i = 0; i < expression.Length; i++)
+			{
+				if(expression[i] == '(')
+					openBrackets++;
+				if(expression[i] == ')')
+					openBrackets--;
+				if(openBrackets == 0)
+				{
+					if(expression[i] == '+')
+					{
+						summands.Add(expression.Substring(summandStartIndex, i - summandStartIndex));
+						summandStartIndex = i + 1;
+					}
+					else if(i == expression.Length - 1)
+					{
+						summands.Add(expression.Substring(summandStartIndex));
+					}
+				}
+			}
+			return summands;
+		}
+
+		public static string GetDenominator(string expression)
+		{
+			(string num, string den) = SplitFraction(expression);
+			return den;
+		}
+
+		public static string GetNumerator(string expression)
+		{
+			(string num, string den) = SplitFraction(expression);
+			return num;
+		}
+
+		public static (string, string) SplitFraction(string expression)
+		{
+			int openBrackets = 0;
+			for(int i = 0; i < expression.Length; i++)
+			{
+				if(expression[i] == '(')
+					openBrackets++;
+				if(expression[i] == ')')
+					openBrackets--;
+				if(openBrackets == 0 && expression[i] == '/')
+				{
+					return (TrimBrackets(expression.Substring(0, i)),
+							TrimBrackets(expression.Substring(i + 1))
+							);
+				}
+			}
+			return (expression, "");
+		}
+
+		public static string TrimBrackets(string expression)
+		{
+			if(expression[0] != '(' || expression[expression.Length - 1] != ')')
+				return expression;
+			int openBrackets = 0;
+			for(int i = 0; i < expression.Length; i++)
+			{
+				if(expression[i] == '(')
+					openBrackets++;
+				if(expression[i] == ')')
+					openBrackets--;
+				if(openBrackets == 0 && i != expression.Length - 1)
+				{
+					return expression;
+				}
+			}
+			return openBrackets == 0 ? expression.Substring(1, expression.Length - 2) : expression;
+		}
+
+		public static List<string> GetSecondOrderDenominators(string expression)
+		{
+			List<string> denominators = new List<string>();
+			(string numerator, string denominator) = SplitFraction(expression);
+			List<string> summands = GetSummands(numerator);
+			for(int i = 0; i < summands.Count; i++)
+			{
+				string den = GetDenominator(summands[i]);
+				if(!denominators.Contains(den) && !den.Equals(""))
+					denominators.Add(den);
+			}
+			summands = GetSummands(denominator);
+			for(int i = 0; i < summands.Count; i++)
+			{
+				string den = GetDenominator(summands[i]);
+				if(!denominators.Contains(den) && !den.Equals(""))
+					denominators.Add(den);
+			}
+			return denominators;
+		}
+
+		public static string MultiplyExpression(string expression, string factor)
+		{
+			(string numerator, string denominator) = SplitFraction(expression);
+			if(denominator.Equals(""))
+			{
+				return MultiplyByFactor(numerator, factor);
+			}
+			return MultiplyByFactor(numerator, factor) + "/" + MultiplyByFactor(denominator, factor);
+		}
+
+		public static string MultiplySums(string factor1, string factor2)
+		{
+			string result = "";
+			List<string> expSummands = GetSummands(factor1);
+			List<string> facSummands = GetSummands(factor2);
+			for(int i = 0; i < expSummands.Count; i++)
+			{
+				for(int j = 0; j < facSummands.Count; j++)
+				{
+					result += expSummands[i] + facSummands[j] + "+";
+				}
+			}
+			result = result.Remove(result.Length-1,1);
+			return result;
+		}
+
+		public static string MultiplyByFactor(string expression, string factor)
+		{
+			string result = "";
+			string factorRem = factor;
+			List<string> expSummands = GetSummands(expression);
+			for(int i = 0; i < expSummands.Count; i++)
+			{
+				result += expSummands[i] + factorRem + "+";
+			}
+			return result.Remove(result.Length - 1, 1);
+		}
 	}
 
 	public class Path
@@ -239,9 +492,11 @@ namespace FilterDesigner
 
 		public Path Copy()
 		{
-			Path copy = new Path();
-			copy.Start = Start;
-			copy.End = End;
+			Path copy = new Path
+			{
+				Start = Start,
+				End = End
+			};
 			foreach(Component component in Components)
 			{
 				copy.Add(component);
@@ -252,7 +507,7 @@ namespace FilterDesigner
 		public bool ContainsNet(Net net)
 		{
 			if(Components.Count < 2)
-				return net==Start || net==End;
+				return net == Start || net == End;
 			return Components.Any(c => c.IsConnected(net));
 
 
@@ -282,7 +537,7 @@ namespace FilterDesigner
 				nets.Add(component.OtherNet(previousNet));
 				previousNet = component.OtherNet(previousNet);
 			}
-			return nets;	// Shouldn't happen
+			return nets;    // Shouldn't happen
 		}
 
 		public string GetImpedance()
@@ -293,7 +548,7 @@ namespace FilterDesigner
 				impedance += component.GetValueStr() + "+";
 			}
 			if(impedance.Length > 0)
-				impedance = impedance.Remove(impedance.Length-1, 1);
+				impedance = impedance.Remove(impedance.Length - 1, 1);
 			return impedance;
 		}
 
@@ -321,7 +576,7 @@ namespace FilterDesigner
 				return false;
 			if(Components.Count != (otherPath as Path).Components.Count)
 				return false;
-			for(int i = 0; i<Components.Count; i++)
+			for(int i = 0; i < Components.Count; i++)
 			{
 				if(Components[i] != (otherPath as Path).Components[i])
 				{
@@ -329,6 +584,11 @@ namespace FilterDesigner
 				}
 			}
 			return true;
+		}
+
+		public override int GetHashCode()   // To get rid of compiler warning
+		{
+			return base.GetHashCode();
 		}
 	}
 
@@ -352,7 +612,7 @@ namespace FilterDesigner
 			set
 			{
 				Canvas.SetLeft(connectionMarker, value - 5);
-				foreach(KeyValuePair<Line,LineEndPoint> line in wires)
+				foreach(KeyValuePair<Line, LineEndPoint> line in wires)
 				{
 					if(line.Value == LineEndPoint.Point1)
 					{
@@ -419,7 +679,7 @@ namespace FilterDesigner
 			Panel.SetZIndex(connectionMarker, Component.baseCanvasMaxZIndex + 3);
 			baseCanvas.Children.Add(connectionMarker);
 		}
-		
+
 		public void Branchpoint_MouseDown(object sender, MouseButtonEventArgs e)
 		{
 			e.Handled = true;
@@ -441,13 +701,13 @@ namespace FilterDesigner
 					if(Net.wireAttached)
 					{
 						bool cancel = false;
-						if(this == Net.attachedLineOrigin)		// Same Branchpoint clicked again
+						if(this == Net.attachedLineOrigin)      // Same Branchpoint clicked again
 						{
 							cancel = true;
 						}
 						else
 						{
-							foreach(Line line in wires.Keys)	// Don't add a wire twice
+							foreach(Line line in wires.Keys)    // Don't add a wire twice
 							{
 								if(Net.attachedLineOrigin.wires.ContainsKey(line))
 								{
@@ -503,7 +763,7 @@ namespace FilterDesigner
 			message += $"{wires.Count} ";
 			message += (wires.Count == 1) ? "Wire" : "Wires";
 			message += " attached\n";
-			if(net.connections.Count(x=>(x.Value.Contains(this))) > 0)
+			if(net.connections.Count(x => (x.Value.Contains(this))) > 0)
 			{
 				Component attachedComponent = net.Components.First(c => net.connections[c].Contains(this));
 				message += $"Attached Component: {attachedComponent.Name}\n";
@@ -521,20 +781,30 @@ namespace FilterDesigner
 
 		public List<Component> Components { get; }
 		public List<Branchpoint> branchPoints;
-		public List<Line> wires;						//Necessary? Maybe highlight net 
+		public List<Line> wires;                        //Necessary? Maybe highlight net 
 		public Dictionary<Component, List<Branchpoint>> connections;
 		public static Dictionary<Line, Net> wireDictionary = new Dictionary<Line, Net>();
-		
-		public static bool wireAttached = false;		// Currently drawing a connection?
-		public static Line attachedLine;				// Current line
-		public static Net attachedNet;					// Current net attached to line
-		public static Branchpoint attachedLineOrigin;	// Current line origin
+
+		public static bool wireAttached = false;        // Currently drawing a connection?
+		public static Line attachedLine;                // Current line
+		public static Net attachedNet;                  // Current net attached to line
+		public static Branchpoint attachedLineOrigin;   // Current line origin
 
 		public static Canvas baseCanvas;
 
-		static int netCount = 0;	// Improve to account for deleted Nets
-
-		public Net() : this($"${netCount++}") { }
+		public Net() : this("")
+		{
+			int i = 0;
+			while(true)
+			{
+				if(!MainWindow.allNets.Any(c => c.Name.Equals($"${i}")))
+				{
+					break;
+				}
+				i++;
+			}
+			Name = $"${i}";
+		}
 
 		public Net(string name)
 		{
@@ -707,7 +977,7 @@ namespace FilterDesigner
 			Branchpoint newBranchPoint = new Branchpoint(this, point_x, point_y);
 			newBranchPoint.wires.Add(splitLine, LineEndPoint.Point1);
 			newBranchPoint.wires.Add(sender, LineEndPoint.Point2);
-			
+
 			this.Branchpoint_Connect(newBranchPoint);
 		}
 
@@ -788,7 +1058,7 @@ namespace FilterDesigner
 				}
 				connections[kvp.Key].AddRange(kvp.Value);
 			}
-			foreach(Line line in net.wires)	
+			foreach(Line line in net.wires)
 			{
 				wireDictionary[line] = this;
 			}
@@ -817,7 +1087,7 @@ namespace FilterDesigner
 
 		public override string ToString()
 		{
-			return Name; 
+			return Name;
 		}
 	}
 
@@ -899,16 +1169,17 @@ namespace FilterDesigner
 		public ConnectionPort PortB { get; protected set; }
 		public Net NetA { get; set; }
 		public Net NetB { get; set; }
-		public Impedance Impedance { get; }
+		//public Impedance Impedance { get; }
 
 		protected Component(string name)
 		{
 			Name = name;
 			VisualGroup = new Canvas
 			{
-				Background = Brushes.Transparent,  // Transparent
+				Background = Brushes.Transparent,
 				Width = 90,
-				Height = 20
+				Height = 20,
+				SnapsToDevicePixels = true
 			};
 			VisualGroup.MouseLeftButtonDown += (x, y) => Symbol_MouseLeftDown(this, y);
 			VisualGroup.MouseRightButtonDown += (x, y) => Symbol_RightClick(this, y);
@@ -920,7 +1191,7 @@ namespace FilterDesigner
 			MainWindow.allComponents.Add(this);
 		}
 
-		protected Component(string name, int x, int y) : this(name)
+		protected Component(string name, double x, double y) : this(name)
 		{
 			X = x;
 			Y = y;
@@ -957,7 +1228,7 @@ namespace FilterDesigner
 
 		public abstract void Draw();
 
-		public static void UpdateBaseCanvas()   // Put into wire visualWrapper?
+		public static void UpdateBaseCanvas()
 		{
 			//baseCanvasMaxZIndex = baseCanvas.Children.OfType<Canvas>().Count();
 			foreach(UIElement elem in baseCanvas.Children)
@@ -1031,8 +1302,8 @@ namespace FilterDesigner
 		{
 			string message = "";
 			message += $"Name: {sender.Name}\n";
-			message += $"NetA: {sender.NetA?.Name??"null"}\n";
-			message += $"NetB: {sender.NetB?.Name??"null"}\n";
+			message += $"NetA: {sender.NetA?.Name ?? "null"}\n";
+			message += $"NetB: {sender.NetB?.Name ?? "null"}\n";
 			message += $"X: {sender.X}, Y: {sender.Y}";
 			MessageBox.Show(message, "Component");
 		}
@@ -1068,7 +1339,7 @@ namespace FilterDesigner
 			}
 		}
 
-		public NetPort GetPort(Net net)	// Make sure net is part of component
+		public NetPort GetPort(Net net) // Make sure net is part of component
 		{
 			if(net == NetA)
 			{
@@ -1083,11 +1354,13 @@ namespace FilterDesigner
 				throw new InvalidOperationException();
 			}
 		}
+
+		public abstract Impedance GetImpedance(double frequency);
 	}
 
 	public class Resistor : Component
 	{
-		private double resistance;
+		public double Resistance { get; set; }
 
 		// Update for Rotation
 		public override double PortA_MarginX
@@ -1108,7 +1381,20 @@ namespace FilterDesigner
 		}
 
 		public Resistor(string name) : base(name) { }
-		public Resistor(string name, int x, int y) : base(name, x, y) { }
+		public Resistor(string name, double x, double y) : base(name, x - 45, y - 10) { }
+		public Resistor(double x, double y) : this("", x, y)
+		{
+			int i = 1;
+			while(true)
+			{
+				if(!MainWindow.allComponents.Any(c => c.Name.Equals($"R{i}")))
+				{
+					break;
+				}
+				i++;
+			}
+			Name = $"R{i}";
+		}
 
 		public override string GetValueStr()
 		{
@@ -1176,11 +1462,16 @@ namespace FilterDesigner
 		{
 			return Name;
 		}
+
+		public override Impedance GetImpedance(double frequency)
+		{
+			return new Impedance(Resistance);
+		}
 	}
 
 	public class Inductor : Component
 	{
-		private double inductance;
+		public double Inductance { get; set; }
 
 		// Update for Rotation
 		public override double PortA_MarginX
@@ -1201,7 +1492,20 @@ namespace FilterDesigner
 		}
 
 		public Inductor(string name) : base(name) { }
-		public Inductor(string name, int x, int y) : base(name, x, y) { }
+		public Inductor(string name, double x, double y) : base(name, x - 45, y - 10) { }
+		public Inductor(double x, double y) : this("", x, y)
+		{
+			int i = 1;
+			while(true)
+			{
+				if(!MainWindow.allComponents.Any(c => c.Name.Equals($"L{i}")))
+				{
+					break;
+				}
+				i++;
+			}
+			Name = $"L{i}";
+		}
 
 		public override string GetValueStr()
 		{
@@ -1264,11 +1568,16 @@ namespace FilterDesigner
 			}
 			return (x, y);
 		}
+
+		public override Impedance GetImpedance(double frequency)
+		{
+			return new Impedance(0, 2 * Math.PI * frequency * Inductance);
+		}
 	}
 
 	public class Capacitor : Component
 	{
-		private double capacitance;
+		public double Capacitance { get; set; }
 
 		// Update for Rotation:
 		public override double PortA_MarginX
@@ -1290,13 +1599,26 @@ namespace FilterDesigner
 
 		public Capacitor(string name) : base(name)
 		{
-			VisualGroup.Width = 30;
+			VisualGroup.Width = 50;
 			VisualGroup.Height = 40;
 		}
-		public Capacitor(string name, int x, int y) : base(name, x, y)
+		public Capacitor(string name, double x, double y) : base(name, x - 25, y - 20)
 		{
 			VisualGroup.Width = 50;
 			VisualGroup.Height = 40;
+		}
+		public Capacitor(double x, double y) : this("", x, y)
+		{
+			int i = 1;
+			while(true)
+			{
+				if(!MainWindow.allComponents.Any(c => c.Name.Equals($"C{i}")))
+				{
+					break;
+				}
+				i++;
+			}
+			Name = $"C{i}";
 		}
 
 		public override string GetValueStr()
@@ -1372,11 +1694,99 @@ namespace FilterDesigner
 			}
 			return (x, y);
 		}
+
+		public override Impedance GetImpedance(double frequency)
+		{
+			return new Impedance(0, 1 / (2 * Math.PI * frequency * Capacitance));
+		}
 	}
 
 	public class Impedance
 	{
-		public string Value { get; set; }
+		public string Value
+		{
+			get
+			{
+				string value = "";
+				if(Resistance == 0 && Reactance == 0)
+				{
+					return "0";
+				}
+				if(Resistance != 0)
+				{
+					value = $"{Resistance}";
+					if(Reactance != 0)
+					{
+						value += "+";
+					}
+					else return value;
+				}
+				if(Reactance != 0)
+				{
+					value += $"j*{Reactance}";
+				}
+				return value;
+			}
+		}
+		public double Resistance { get; set; }
+		public double Reactance { get; set; }
+
+		public Impedance(double resistance = 0.0, double reactance = 0.0)
+		{
+			Resistance = resistance;
+			Reactance = reactance;
+		}
+
+		public static implicit operator Impedance(double resistance)
+		{
+			return new Impedance(resistance);
+		}
+
+		public static Impedance operator +(Impedance Z1, Impedance Z2)
+		{
+			return new Impedance()
+			{
+				Resistance = Z1.Resistance + Z2.Resistance,
+				Reactance = Z1.Reactance + Z2.Reactance
+			};
+		}
+
+		public static Impedance operator -(Impedance Z1, Impedance Z2)
+		{
+			return new Impedance
+			{
+				Resistance = Z1.Resistance - Z2.Resistance,
+				Reactance = Z1.Reactance - Z2.Reactance
+			};
+		}
+
+		public static Impedance operator *(Impedance Z1, Impedance Z2)
+		{
+			return new Impedance
+			{
+				Resistance = Z1.Resistance * Z2.Resistance - Z1.Reactance * Z2.Reactance,
+				Reactance = Z1.Resistance * Z2.Reactance + Z1.Reactance * Z2.Resistance
+			};
+		}
+
+		public static Impedance operator /(Impedance Z1, Impedance Z2)
+		{
+			double a = Z1.Resistance;
+			double b = Z1.Reactance;
+			double c = Z2.Resistance;
+			double d = Z2.Reactance;
+			double Z2_Abs2 = c * c + d * d;
+			return new Impedance
+			{
+				Resistance = (a * c + b * d) / Z2_Abs2,
+				Reactance = (b * c - a * d) / Z2_Abs2
+			};
+		}
+
+		public static Impedance operator |(Impedance Z1, Impedance Z2)  // Parallel-Operator
+		{
+			return (Z1 * Z2) / (Z1 + Z2);
+		}
 	}
 
 	//public static class ObervableCollectionExtension

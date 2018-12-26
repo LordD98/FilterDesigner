@@ -5,10 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FilterDesigner"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-	<Grid>
+        Title="Filter Designer" Height="450" Width="800" Icon="Symbol.png">
+	<Grid x:Name="mainGrid">
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition/>
+			<ColumnDefinition Width="10"/>
 			<ColumnDefinition Width="100"/>
 		</Grid.ColumnDefinitions>
 		<Canvas x:Name="canvas" 
@@ -16,7 +17,11 @@
 				SnapsToDevicePixels="True" 
 				ClipToBounds="True" 
 				Background="#FFFAFAFA"/>
-		<Grid x:Name="Toolbox" Grid.Column="1" Margin="5,5,5,0">
+		<Grid x:Name="Toolbox" Grid.Column="1" Margin="0,5,5,0" Grid.ColumnSpan="2">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="10"/>
+				<ColumnDefinition Width="95"/>
+			</Grid.ColumnDefinitions>
 			<Grid.RowDefinitions>
 				<RowDefinition/>
 				<RowDefinition/>
@@ -26,7 +31,10 @@
 				<RowDefinition Height="30"/>
 				<RowDefinition Height="30"/>
 			</Grid.RowDefinitions>
-			<Button x:Name="btnResistor">
+			<Rectangle x:Name="RectResistor" Fill="Transparent" Margin="0,5" Stroke="#00000000" StrokeThickness="0" Grid.Row="0" SnapsToDevicePixels="True"/>
+			<Rectangle x:Name="RectCapacitor" Fill="Transparent" Margin="0,5" Stroke="#00000000" StrokeThickness="0" Grid.Row="1" SnapsToDevicePixels="True"/>
+			<Rectangle x:Name="RectInductor" Fill="Transparent" Margin="0,5" Stroke="#00000000" StrokeThickness="0" Grid.Row="2" SnapsToDevicePixels="True"/>
+			<Button x:Name="btnResistor" Click="BtnResistor_Click" Grid.Column="1" Margin="5,0,0,0">
 				<Canvas>
 					<Rectangle
 						Canvas.Left="-25"
@@ -50,7 +58,7 @@
 						SnapsToDevicePixels = "true" Width="80"/>
 				</Canvas>
 			</Button>
-			<Button x:Name="btnCapacitor" Grid.Row="1">
+			<Button x:Name="btnCapacitor" Grid.Column="1" Grid.Row="1" Click="BtnCapacitor_Click" Margin="5,0,0,0">
 				<Canvas>
 					<Border
 						Canvas.Left="-5"
@@ -75,7 +83,7 @@
 						Panel.ZIndex="0"/>
 				</Canvas>
 			</Button>
-			<Button x:Name="btnInductor" Grid.Row="2">
+			<Button x:Name="btnInductor" Grid.Column="1" Grid.Row="2" Click="BtnInductor_Click" Margin="5,0,0,0">
 				<Canvas>
 					<Rectangle
 						Canvas.Left="-25"
@@ -99,9 +107,10 @@
 						SnapsToDevicePixels = "true" Width="80"/>
 				</Canvas>
 			</Button>
-			<ComboBox x:Name="cbxNet1" Margin="0,5" Grid.Row="4"/>
-			<ComboBox x:Name="cbxNet2" Margin="0,5" Grid.Row="5"/>
-			<Button x:Name="btnTest" Content="Get Impedance" Margin="0,5" Click="BtnTest_Click" Grid.Row="6"/>
+			<TextBlock x:Name="tbResult" Grid.Column="1" Margin="5,5,0,0" Grid.Row="3" TextWrapping="Wrap"/>
+			<ComboBox x:Name="cbxNet1" Margin="5,5,0,5" Grid.Column="1" Grid.Row="4"/>
+			<ComboBox x:Name="cbxNet2" Margin="5,5,0,5" Grid.Column="1" Grid.Row="5"/>
+			<Button x:Name="btnTest" Content="Get Impedance" Margin="5,5,0,5" Click="BtnTest_Click" Grid.Column="1" Grid.Row="6"/>
 		</Grid>
 	</Grid>
 </Window>
