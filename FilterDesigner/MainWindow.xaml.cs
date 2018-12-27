@@ -29,9 +29,9 @@ namespace FilterDesigner
 
 		public MainWindow()
 		{
-			string testString = @"(sef+sef+sef+s+ef/awd)/(1/(safs)+1/(1/(ad))+1/(1/(s)+1/(d)))";
-			List<string> sods = StringArithmetic.GetSecondOrderDenominators(testString);
-			StringArithmetic.MultiplyExpression
+			//string s = "1/sL+1/(1+1/(sC))";
+			//List<string> fods = StringArithmetic.GetFirstOrderDenominators(s);
+			//string fraction = StringArithmetic.ToOneDenominator(s);
 
 			InitializeComponent();
 			Component.baseCanvas = canvas;
@@ -228,15 +228,95 @@ namespace FilterDesigner
 			return impedance;
 		}
 
+		public Expression GetExpressionOfPaths(List<Path> paths)
+		{
+			if(paths.Count == 0)
+				return null;
+
+			if(paths.Count == 1)
+			{
+				return paths[0].GetExpression();
+			}
+
+			Net startNet = paths[0].Start;
+			Net endNet = paths[0].End;
+
+			// Find all (intermediate) nets that are common to all Paths
+			List<Net> commonNets = new List<Net>();
+			foreach(Net intermediateNet in paths[0].GetIntermediateNets())
+			{
+				if(paths.All(p => p.ContainsNet(intermediateNet)))
+				{
+					commonNets.Add(intermediateNet);
+				}
+			}
+			commonNets.Add(endNet);
+			if(commonNets.Count == 1)   // No non-trivial common nets
+			{
+				// There are at least two completely independent List<Path>s
+				// Find all groups of paths
+				List<List<Path>> listListPaths = new List<List<Path>>();
+				foreach(Path path in paths)
+				{
+					int index = listListPaths.FindIndex(l => l.All(p => p.HasCommonNets(path)));
+					if(index != -1)
+					{
+						listListPaths[index].Add(path);
+					}
+					else
+					{
+						listListPaths.Add(new List<Path>());
+						listListPaths[listListPaths.Count - 1].Add(path);
+					}
+				}
+
+				Division result = new Division();
+				result.Numerator = 1;
+				result.Denominator = new Sum();
+				foreach(List<Path> lp in listListPaths)
+				{
+					Division div = new Division();
+					(result.Denominator as Sum).AddSummand(div);
+					div.Numerator = 1;
+					div.Denominator = GetExpressionOfPaths(lp);
+				}
+				return result;
+			}
+			else
+			{
+				Net lastCommonNet = paths[0].Start;
+				Sum result = new Sum();
+				foreach(Net commonNet in commonNets)
+				{
+					List<Path> stepPaths = new List<Path>();
+					foreach(Path p in paths)
+					{
+						Path subPath = p.SubPath(lastCommonNet, commonNet);
+						if(!stepPaths.Contains(subPath))
+						{
+							stepPaths.Add(subPath);
+						}
+					}
+					result.AddSummand(GetExpressionOfPaths(stepPaths));
+					lastCommonNet = commonNet;
+				}
+				return result;
+			}
+		}
+
 		private void BtnTest_Click(object sender, RoutedEventArgs e)
 		{
 			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
 				return;
 			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
 			string impedance = GetImpedanceOfPaths(paths);
-			tbResult.Text = impedance;
-			List<string> result = StringArithmetic.GetSummands(impedance);
-			string denom = StringArithmetic.GetDenominator(impedance);
+			//tbResult.Text = impedance;
+			//List<string> result = StringArithmetic.GetSummands(impedance);
+			//string denom = StringArithmetic.GetDenominator(impedance);
+			Expression exp = GetExpressionOfPaths(paths);
+			exp = exp.ToCommonDenominator();
+			string expression = exp.Evaluate();
+			tbResult.Text = expression;
 		}
 
 		public void DrawAll()
@@ -335,6 +415,96 @@ namespace FilterDesigner
 
 	public static class StringArithmetic
 	{
+		// C_ denotes a complex function that is aware of naming schemes and special symbols 
+
+		public static bool C_ContainsTerm(string factor, string term) // ex.: "sL1L'C","L'"
+		{
+			if(C_GetComponentTerms(factor).Contains(term))
+				return true;
+			return false;
+		}
+
+		public static List<string> C_GetComponentTerms(string factor) // ex. "sL1L'C"
+		{
+			List<string> terms = new List<string>();
+			string currentTerm = "";
+			for(int i = 0; i < factor.Length; i++)
+			{
+				if(currentTerm != "")
+				{
+					if(factor[i] == 's' || factor[i] == 'R' || factor[i] == 'L' || factor[i] == 'C')
+					{
+						terms.Add(currentTerm);
+					}
+				}
+				switch(factor[i])
+				{
+					case 's':
+						currentTerm = "s";
+						break;
+					case 'R':
+						currentTerm = "R";
+						break;
+					case 'L':
+						currentTerm = "L";
+						break;
+					case 'C':
+						currentTerm = "C";
+						break;
+					default:
+						currentTerm += factor[i];
+						break;
+				}
+			}
+			return terms;
+		}
+
+
+		public static bool IsSum(string expression)
+		{
+			return GetSummands(expression).Count > 1;
+		}
+		public static bool IsProduct(string expression)
+		{
+			return GetFactors(expression).Count > 1;
+		}
+		public static bool IsFraction(string expression)
+		{
+			(string n, string d) = SplitFraction(expression);
+			return !d.Equals("");
+		}
+
+
+		public static string Product(List<string> factors)
+		{
+			string product = "";
+			foreach(string factor in factors)
+			{
+				if(factor.Equals("1")) continue;
+				if(factor.Equals("0")) return "0";
+				if(IsSum(factor))
+					product += "(" + factor + ")";
+			}
+			return product;
+		}
+
+		public static string Product(string factor1, string factor2)
+		{
+			if(factor1.Equals("0") || factor2.Equals("0")) return "0";
+			if(factor1.Equals("1")) return factor2;
+			if(factor2.Equals("1")) return factor1;
+			string result = "";
+			if(IsSum(factor1))
+				result += "(" + factor1 + ")";
+			else
+				result += factor1;
+			if(IsSum(factor2))
+				result += "(" + factor2 + ")";
+			else
+				result += factor2;
+			return result;
+		}
+
 		public static List<string> GetSummands(string expression)
 		{
 			List<string> summands = new List<string>();
@@ -362,6 +532,76 @@ namespace FilterDesigner
 			return summands;
 		}
 
+		public static List<string> GetFactors(string expression)
+		{
+			List<string> factors = new List<string>();
+			int openBrackets = 0;
+			int factorStartIndex = 0;
+			string factor = null;
+			for(int i = 0; i < expression.Length; i++)
+			{
+				if(expression[i] == '(')
+				{
+					if(openBrackets == 0)
+					{
+						if(i > 0 && expression[i - 1] != ')' && expression[i - 1] != '/')
+						{
+							factor = expression.Substring(factorStartIndex, i - factorStartIndex);
+						}
+						factorStartIndex = i + 1;
+					}
+					openBrackets++;
+				}
+				else if(expression[i] == ')')
+				{
+					openBrackets--;
+					if(openBrackets == 0)
+					{
+						if(factorStartIndex > 2 && expression[factorStartIndex - 2] == '/')
+						{
+							factor = "1/" + expression.Substring(factorStartIndex, i - factorStartIndex);
+						}
+						else
+						{
+							factor = expression.Substring(factorStartIndex, i - factorStartIndex);
+						}
+						if(i + 1 != expression.Length && expression[i + 1] != '(')
+						{
+							factorStartIndex = i + 1;
+						}
+					}
+				}
+				else if(openBrackets == 0)
+				{
+					if(expression[i] == '/' && expression[i - 1] != ')')
+					{
+						factor = expression.Substring(factorStartIndex, i - factorStartIndex);
+						factorStartIndex = i + 1;
+					}
+					if(expression[i] == '+')
+					{
+						factors.Clear();
+						factors.Add(TrimDown(expression));
+						return factors;
+					}
+					else if(i == expression.Length - 1)
+					{
+						if(expression[factorStartIndex] == '/') // ind-1?
+							factor = "1/" + expression.Substring(factorStartIndex + 1);
+						else
+							factor = expression.Substring(factorStartIndex);
+					}
+					//factorStartIndex = i;
+				}
+				if(factor != null && !factor.Equals("1"))
+				{
+					factors.Add(TrimDown(factor));
+					factor = null;
+				}
+			}
+			return factors;
+		}
+
 		public static string GetDenominator(string expression)
 		{
 			(string num, string den) = SplitFraction(expression);
@@ -385,12 +625,24 @@ namespace FilterDesigner
 					openBrackets--;
 				if(openBrackets == 0 && expression[i] == '/')
 				{
-					return (TrimBrackets(expression.Substring(0, i)),
-							TrimBrackets(expression.Substring(i + 1))
+					return (TrimDown(expression.Substring(0, i)),
+							TrimDown(expression.Substring(i + 1))
 							);
 				}
 			}
 			return (expression, "");
+		}
+
+		public static string TrimDown(string expression)
+		{
+			string oldExpression = "";
+			string newExpression = expression;
+			while(oldExpression != newExpression)
+			{
+				oldExpression = newExpression;
+				newExpression = TrimBrackets(newExpression);
+			}
+			return newExpression;
 		}
 
 		public static string TrimBrackets(string expression)
@@ -412,6 +664,20 @@ namespace FilterDesigner
 			return openBrackets == 0 ? expression.Substring(1, expression.Length - 2) : expression;
 		}
 
+		public static List<string> GetFirstOrderDenominators(string expression)
+		{
+			List<string> denominators = new List<string>();
+			List<string> summands = GetSummands(expression);
+			foreach(string summand in summands)
+			{
+				if(IsFraction(summand))
+				{
+					denominators.Add(GetDenominator(summand));
+				}
+			}
+			return denominators;
+		}
+
 		public static List<string> GetSecondOrderDenominators(string expression)
 		{
 			List<string> denominators = new List<string>();
@@ -419,28 +685,80 @@ namespace FilterDesigner
 			List<string> summands = GetSummands(numerator);
 			for(int i = 0; i < summands.Count; i++)
 			{
-				string den = GetDenominator(summands[i]);
-				if(!denominators.Contains(den) && !den.Equals(""))
-					denominators.Add(den);
+				List<string> den = GetFactors(GetDenominator(summands[i]));
+				foreach(string factor in den)
+				{
+					if(!denominators.Contains(factor) && !factor.Equals(""))
+						denominators.Add(TrimDown(factor));
+				}
 			}
 			summands = GetSummands(denominator);
 			for(int i = 0; i < summands.Count; i++)
 			{
-				string den = GetDenominator(summands[i]);
-				if(!denominators.Contains(den) && !den.Equals(""))
-					denominators.Add(den);
+				List<string> den = GetFactors(GetDenominator(summands[i]));
+				foreach(string factor in den)
+				{
+					if(!denominators.Contains(factor) && !factor.Equals(""))
+						denominators.Add(TrimDown(factor));
+				}
 			}
 			return denominators;
 		}
+		
+		public static string ToOneDenominator(string expression)
+		{	
+			List<string> summands = GetSummands(expression);
+			if(summands.Count < 2) return expression;
+			List<string> denominators = GetFirstOrderDenominators(expression);
+			string denominator = "";
+			string numerator = "";
+			denominator = Product(denominators);
+			foreach(string summand in summands)
+			{
+				(string summandNum, string summandDen) = SplitFraction(summand);
+				numerator += "+" + summandNum;
+				List<string> denFactors = GetFactors(summandDen);
+				foreach(string factor in denominators)
+				{
+					if(!summandDen.Equals(factor))
+					{
+						if(IsSum(factor))
+							numerator += "(" + factor + ")";
+						else
+							numerator += factor;
+					}
+				}
+			}
+			numerator = numerator.Substring(1);
+			return "(" + numerator + ")/(" + denominator + ")";
+		}
+
 
 		public static string MultiplyExpression(string expression, string factor)
 		{
 			(string numerator, string denominator) = SplitFraction(expression);
-			if(denominator.Equals(""))
+
+			if(denominator.Equals(TrimDown(factor)))
 			{
-				return MultiplyByFactor(numerator, factor);
+				return numerator;
 			}
-			return MultiplyByFactor(numerator, factor) + "/" + MultiplyByFactor(denominator, factor);
+			string result = "";
+
+
+
+			if(numerator.Equals(1))
+			{
+				result += factor;
+			}
+			else
+			{
+				result += "(" + factor + ")(" + numerator + ")";
+			}
+			if(!denominator.Equals(""))
+			{
+				result += "/(" + denominator + ")";
+			}
+			return result;
 		}
 
 		public static string MultiplySums(string factor1, string factor2)
@@ -455,20 +773,8 @@ namespace FilterDesigner
 					result += expSummands[i] + facSummands[j] + "+";
 				}
 			}
-			result = result.Remove(result.Length-1,1);
+			result = result.Remove(result.Length - 1, 1);
 			return result;
-		}
-
-		public static string MultiplyByFactor(string expression, string factor)
-		{
-			string result = "";
-			string factorRem = factor;
-			List<string> expSummands = GetSummands(expression);
-			for(int i = 0; i < expSummands.Count; i++)
-			{
-				result += expSummands[i] + factorRem + "+";
-			}
-			return result.Remove(result.Length - 1, 1);
 		}
 	}
 
@@ -550,6 +856,29 @@ namespace FilterDesigner
 			if(impedance.Length > 0)
 				impedance = impedance.Remove(impedance.Length - 1, 1);
 			return impedance;
+		}
+
+		public Expression GetExpression()
+		{
+			Sum result = new Sum();
+			foreach(Component component in Components)
+			{
+				if(component is Capacitor)
+				{
+					Division div = new Division
+					{
+						Numerator = new ValueExpression("1"),
+						Denominator = new ValueExpression(component)
+					};
+					result.AddSummand(div);
+				}
+				else
+				{
+					result.AddSummand(new ValueExpression(component));
+				}
+			}
+
+			return result;
 		}
 
 		public Path SubPath(Net start, Net end)
