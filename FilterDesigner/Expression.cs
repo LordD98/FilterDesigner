@@ -155,12 +155,14 @@ namespace FilterDesigner
 		{
 			this.summands = new List<Expression>(summands);
 		}
-
-		public Sum(Expression exp1, Expression exp2)
+		
+		public Sum(params Expression[] terms)
 		{
 			summands = new List<Expression>();
-			AddSummand(exp1);
-			AddSummand(exp2);
+			for(int i = 0; i<terms.Length; i++)
+			{
+				AddSummand(terms[i]);
+			}
 		}
 
 		public void Merge(List<Expression> newSummands)
@@ -309,7 +311,21 @@ namespace FilterDesigner
 		{
 			if(!(other is Sum)) return false;
 			if(summands.Count != (other as Sum).summands.Count) return false;
-			return (other as Sum).summands.All(summands.Contains);
+			//(other as Sum).summands.All(summands.Contains)
+			List<int> visitedIndices = new List<int>();
+			for(int i = 0; i<summands.Count; i++)
+			{
+				int newIndex = -1;
+				do
+				{
+					newIndex++;
+					newIndex = (other as Sum).summands.IndexOf(summands[i], newIndex);
+					if(newIndex == -1) return false;
+				}
+				while(visitedIndices.Contains(newIndex));
+				visitedIndices.Add(newIndex);
+			}
+			return true;
 		}
 
 		public override int GetHashCode()
@@ -393,14 +409,16 @@ namespace FilterDesigner
 			}
 			CleanUp();
 		}
-
-		public Product(Expression exp1, Expression exp2)
+		
+		public Product(params Expression[] terms)
 		{
 			factors = new List<Expression>();
-			AddFactor(exp1);
-			AddFactor(exp2);
+			for(int i = 0; i < terms.Length; i++)
+			{
+				AddFactor(terms[i]);
+			}
 		}
-
+		
 		public void Merge(List<Expression> newFactors)
 		{
 			foreach(Expression exp in newFactors)
@@ -537,7 +555,20 @@ namespace FilterDesigner
 		{
 			if(!(other is Product)) return false;
 			if(factors.Count != (other as Product).factors.Count) return false;
-			return (other as Product).factors.All(factors.Contains);
+			List<int> visitedIndices = new List<int>();
+			for(int i = 0; i < factors.Count; i++)
+			{
+				int newIndex = -1;
+				do
+				{
+					newIndex++;
+					newIndex = (other as Product).factors.IndexOf(factors[i], newIndex);
+					if(newIndex == -1) return false;
+				}
+				while(visitedIndices.Contains(newIndex));
+				visitedIndices.Add(newIndex);
+			}
+			return true;
 		}
 
 		public override int GetHashCode()
@@ -683,17 +714,17 @@ namespace FilterDesigner
 
 		public override void ReplaceChild(Expression oldChild, Expression newChild)
 		{
-			if(numerator == denominator)
+			if(numerator.Equals(denominator))
 			{
 				Parent?.ReplaceChild(this, 1);
 				return;
 			}
 			Expression copy = newChild.Copy();
-			if(Numerator == oldChild)
+			if(numerator.Equals(oldChild))
 			{
 				Numerator = copy;
 			}
-			else if(Denominator == oldChild)
+			else if(denominator.Equals(oldChild))
 			{
 				Denominator = copy;
 			}
@@ -840,6 +871,11 @@ namespace FilterDesigner
 		public ValueExpression(string val)
 		{
 			value = val;
+		}
+
+		public ValueExpression(double val)
+		{
+			value = val.ToString();
 		}
 
 		public override string Evaluate()
