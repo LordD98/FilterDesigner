@@ -13,6 +13,7 @@ namespace FilterDesigner
 {
 	// TODO:
 	// Rotate Components, Display Names
+	// Split Line, drag immediately
 	// Base move on absolute values of Component, not on relative movements
 	// Merge Branchpoints, Delete Lines and split nets
 	// GetSummands deep Search with recursion
@@ -29,6 +30,29 @@ namespace FilterDesigner
 
 		public MainWindow()
 		{
+			// 1/(1+1/(1/s))
+			Expression topLevel = new Division()
+			{
+				Numerator = 1,
+				Denominator = new Sum
+				(
+					1,
+					new Division()
+					{
+						Numerator = 1,
+						Denominator = new Division()
+						{
+							Numerator = 1,
+							Denominator = new ValueExpression("s")
+						}
+					}
+				)
+			};
+			string eval = topLevel.Evaluate();
+			topLevel = topLevel.ToCommonDenominator();
+			topLevel.ToStandardForm();
+			eval = topLevel.Evaluate();
+
 			//string s = "1/sL+1/(1+1/(sC))";
 			//List<string> fods = StringArithmetic.GetFirstOrderDenominators(s);
 			//string fraction = StringArithmetic.ToOneDenominator(s);
@@ -315,6 +339,12 @@ namespace FilterDesigner
 			//string denom = StringArithmetic.GetDenominator(impedance);
 			Expression exp = GetExpressionOfPaths(paths);
 			exp = exp.ToCommonDenominator();
+			List<Expression> dens = exp.GetDenominators();
+			foreach(Expression denExp in dens)
+			{
+				string den = denExp.Evaluate();
+			}
+			exp.ToStandardForm();
 			string expression = exp.Evaluate();
 			tbResult.Text = expression;
 		}
