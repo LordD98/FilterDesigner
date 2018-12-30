@@ -30,30 +30,19 @@ namespace FilterDesigner
 
 		public MainWindow()
 		{
-			// 1/(1+1/(1/s))
-			Expression topLevel = new Division()
-			{
-				Numerator = 1,
-				Denominator = new Sum
-				(
-					1,
-					new Division()
-					{
-						Numerator = 1,
-						Denominator = new Division()
-						{
-							Numerator = 1,
-							Denominator = new ValueExpression("s")
-						}
-					}
-				)
-			};
-			string eval = topLevel.Evaluate();
-			topLevel = topLevel.ToCommonDenominator();
-			topLevel.ToStandardForm();
-			eval = topLevel.Evaluate();
+			//Expression standardFormTest = 2+(4 + new ValueExpression("s"))*(3+new ValueExpression("s"));
 
-			//string s = "1/sL+1/(1+1/(sC))";
+
+			// 1/(1+1/(1/s))
+			Expression testExp = 1 / (1 + 1 / (1 / (1 / new ValueExpression("s"))));
+
+			
+			string eval = testExp.Evaluate();
+			testExp = testExp.ToCommonDenominator();
+			testExp = testExp.ToStandardForm();
+			eval = testExp.Evaluate();
+
+			//string s = "1/(sL)+1/(1+1/(sC))";
 			//List<string> fods = StringArithmetic.GetFirstOrderDenominators(s);
 			//string fraction = StringArithmetic.ToOneDenominator(s);
 
