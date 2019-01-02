@@ -31,16 +31,11 @@ namespace FilterDesigner
 		public MainWindow()
 		{
 			//Expression standardFormTest = 2+(4 + new ValueExpression("s"))*(3+new ValueExpression("s"));
-
-
-			// 1/(1+1/(1/s))
-			Expression testExp = 1 / (1 + 1 / (1 / (1 / new ValueExpression("s"))));
-
 			
-			string eval = testExp.Evaluate();
-			testExp = testExp.ToCommonDenominator();
-			testExp = testExp.ToStandardForm();
-			eval = testExp.Evaluate();
+			// (s+1)/((1+s)(1+1/s))
+			ValueExpression s = new ValueExpression("s");
+
+			bool b = (s + 1).Equals((s*s+s+s+1)/(s+1));
 
 			//string s = "1/(sL)+1/(1+1/(sC))";
 			//List<string> fods = StringArithmetic.GetFirstOrderDenominators(s);

@@ -8,7 +8,7 @@ namespace FilterDesigner
 {
 	public abstract class Expression
 	{
-		public Expression Parent { get; set; }	// Try to remove?
+		//public Expression Parent { get; set; }	// Try to remove?
 
 		public static implicit operator Expression(double value)
 		{
@@ -110,13 +110,84 @@ namespace FilterDesigner
 
 		public abstract Expression ToStandardForm();
 
-		public abstract void ReplaceChild(Expression oldChild, Expression newChild);
+		public abstract Expression ReplaceChild(Expression oldChild, Expression newChild);
 
-		public abstract void RemoveChild(Expression child);
+		public abstract Expression RemoveChild(Expression child);
 
 		public override bool Equals(object other)
 		{
-			return base.Equals(other);
+			if(other == null) return false;
+			Expression exp1 = this;
+			Expression exp2 = null;
+			if(other is int)
+			{
+				exp2 = new ValueExpression((int)other);
+			}
+			else if(other is double)
+			{
+				exp2 = new ValueExpression((double)other);
+			}
+			else if(other is Expression)
+			{
+				exp2 = other as Expression;
+			}
+			else return false;
+			//if(value == null)
+			//{
+			//	return false;
+			//}
+			//return value.Equals(other.ToString());
+			exp1 = exp1.Unpack();
+			exp2 = exp2.Unpack();
+			exp1 = exp1.ToStandardForm();	// not sure if needed
+			exp2 = exp2.ToStandardForm();   // not sure if needed
+
+			if(exp1 is Product)
+			{
+				exp1 = (exp1 as Product).ToSum();
+			}
+			if(exp2 is Product)
+			{
+				exp2 = (exp2 as Product).ToSum();
+			}
+
+			if(exp1 is Division && exp2 is Division)
+			{
+				Expression e1 = (exp1 as Division).Numerator * (exp2 as Division).Denominator;
+				Expression e2 = (exp2 as Division).Numerator * (exp1 as Division).Denominator;
+				return e1.Equals(e2);
+			}
+			else if(exp1 is Division)
+			{
+				Expression e1 = (exp1 as Division).Numerator;
+				Expression e2 = (exp1 as Division).Denominator * exp2;
+				return e1.Equals(e2);
+			}
+			else if(exp2 is Division)
+			{
+				Expression e1 = (exp2 as Division).Denominator * exp1;
+				Expression e2 = (exp2 as Division).Numerator;
+				return e1.Equals(e2);
+			}
+			else if(exp1.GetType() != exp2.GetType()) return false;
+
+			if(exp1 is Sum)
+			{
+				return (exp1 as Sum).Equal(exp2 as Sum);
+			}
+			else if(exp1 is Product)
+			{
+				return (exp1 as Product).Equal(exp2 as Product);
+			}
+			//else if(exp1 is Division)
+			//{
+			//	return (exp1 as Division).Equal(exp2 as Division);
+			//}
+			else if(exp1 is ValueExpression)
+			{
+				return (exp1 as ValueExpression).Equal(exp2 as ValueExpression);
+			}
+			else return false;
 		}
 
 		public override int GetHashCode()
@@ -140,6 +211,8 @@ namespace FilterDesigner
 		//public abstract Expression Add(Expression summand);
 
 		public abstract Expression Copy();
+
+		public abstract Expression Unpack();
 
 		public override string ToString()
 		{
@@ -287,29 +360,33 @@ namespace FilterDesigner
 			{
 				Expression copy = exp.Copy();
 				summands.Add(copy);
-				copy.Parent = this;
+				//copy.Parent = this;
 			}
 			//CleanUp();
 		}
 
-		public override void ReplaceChild(Expression oldChild, Expression newChild)
+		public override Expression ReplaceChild(Expression oldChild, Expression newChild)
 		{
+			Sum copy = Copy() as Sum;
 			int index = summands.IndexOf(oldChild);
-			Expression copy = newChild.Copy();
+			Expression childCopy = newChild.Copy();
 			if(index == -1)
 			{
-				summands.Add(copy);
+				copy.summands.Add(childCopy);
 			}
 			else
 			{
-				summands[index] = copy;
+				copy.summands[index] = childCopy;
 			}
-			copy.Parent = this;
+			//childCopy.Parent = copy;
+			return copy;
 		}
 
-		public override void RemoveChild(Expression child)
+		public override Expression RemoveChild(Expression child)
 		{
-			summands.Remove(child);
+			Sum copy = Copy() as Sum;
+			copy.summands.Remove(child);
+			return copy;
 		}
 
 		public override Expression Multiply(Expression factor)
@@ -325,11 +402,11 @@ namespace FilterDesigner
 		public static Sum MultiplySums(Sum sum1, Sum sum2)
 		{
 			Sum result = new Sum();
-			foreach(Expression exp1 in sum1.summands)
+			for(int i = 0; i < sum1.summands.Count; i++)
 			{
-				foreach(Expression exp2 in sum2.summands)
+				for(int j = 0; j < sum2.summands.Count; j++)
 				{
-					result.AddSummand(exp1.Multiply(exp2));
+					result.AddSummand(sum1.summands[i].Multiply(sum2.summands[j]));
 				}
 			}
 			return result;
@@ -350,7 +427,7 @@ namespace FilterDesigner
 				Product product = new Product(denominators);
 				if(summand is Division)
 				{
-					product.RemoveChild((summand as Division).Denominator);
+					product = product.RemoveChild((summand as Division).Denominator) as Product;
 					product.AddFactor((summand as Division).Numerator);
 				}
 				else
@@ -380,24 +457,27 @@ namespace FilterDesigner
 				while(result.summands.Any(s => s is Sum))
 				{
 					Sum sum = result.summands.First(s => s is Sum) as Sum;
-					result.RemoveChild(sum);
+					result = result.RemoveChild(sum) as Sum;
 					result = result.Merge(sum) as Sum;
 				}
 				List<Product> lp = result.summands.Where(s => s is Product && !s.IsFinal()).Cast<Product>().ToList();
 				for(int i = 0; i < lp.Count; i++)
 				{ // Product contains Sums,Products&ValueExpressions
 					Product stProd = lp[i].ToStandardForm() as Product;
-					result.ReplaceChild(lp[i], stProd.ToSum());
+					result = result.ReplaceChild(lp[i], stProd.ToSum()) as Sum;
 				}
 			} while(!result.summands.All(e => (e is Product || e is ValueExpression || e is Division)));
-			result.Parent = Parent;
+			//for(int i = 0; i < result.summands.Count; i++)
+			//{
+			//	result.summands[i].Parent = result;
+			//}
+			//result.Parent = Parent;
 			return result;
 		}
 
-		public override bool Equals(object other)
+		public bool Equal(Sum other)
 		{
-			if(!(other is Sum)) return false;
-			if(summands.Count != (other as Sum).summands.Count) return false;
+			if(summands.Count != other.summands.Count) return false;
 			//(other as Sum).summands.All(summands.Contains)
 			List<int> visitedIndices = new List<int>();
 			for(int i = 0; i < summands.Count; i++)
@@ -406,7 +486,7 @@ namespace FilterDesigner
 				do
 				{
 					newIndex++;
-					newIndex = (other as Sum).summands.IndexOf(summands[i], newIndex);
+					newIndex = other.summands.IndexOf(summands[i], newIndex);
 					if(newIndex == -1) return false;
 				}
 				while(visitedIndices.Contains(newIndex));
@@ -473,10 +553,28 @@ namespace FilterDesigner
 			foreach(Expression exp in summands)
 			{
 				Expression subCopy = exp.Copy();
-				subCopy.Parent = this;
+				//subCopy.Parent = this;
 				copy.summands.Add(subCopy);
 			}
 			return copy;
+		}
+
+		public override Expression Unpack()
+		{
+			if(summands.Count == 1)
+			{
+				return summands[0].Unpack();
+			}
+			else
+			{
+				//Product unpacked = Copy() as Sum;
+				//for(int i = 0; i < unpacked.summands.Count; i++)
+				//{
+				//	unpacked.summands[i] = unpacked.summands[i].Unpack();
+				//}
+				//return unpacked;
+				return this;
+			}
 		}
 
 		public void CleanUp() //Necessary?
@@ -486,7 +584,7 @@ namespace FilterDesigner
 				foreach(Expression exp in (summands.First(s => s is Sum) as Sum).summands)
 				{
 					summands.Add(exp.Copy());
-					exp.Parent = this;
+					//exp.Parent = this;
 				}
 			}
 			foreach(Sum sum in summands.Where(s => s is Sum))
@@ -511,7 +609,7 @@ namespace FilterDesigner
 			}
 			if(summands.Count == 1)  // Careful, don't have references to this from outside
 			{
-				Parent?.ReplaceChild(this, summands[0]);
+				//Parent?.ReplaceChild(this, summands[0]);
 			}
 		}
 	}
@@ -519,6 +617,7 @@ namespace FilterDesigner
 	public class Product : Expression
 	{
 		private List<Expression> factors;
+		public List<Expression> Factors { get { return factors; } }
 
 		public Product()
 		{
@@ -528,10 +627,10 @@ namespace FilterDesigner
 		public Product(List<Expression> factors)
 		{
 			this.factors = new List<Expression>(factors);
-			foreach(Expression factor in factors)
-			{
-				factor.Parent = this;
-			}
+			//foreach(Expression factor in factors)
+			//{
+			//	factor.Parent = this;
+			//}
 			CleanUp();
 		}
 		
@@ -569,6 +668,7 @@ namespace FilterDesigner
 		public override string Evaluate()
 		{
 			string result = "";
+			if(factors.All(f => f.Equals(1))) return "1";
 			foreach(Expression exp in factors)
 			{
 				if(exp is Sum)
@@ -592,6 +692,7 @@ namespace FilterDesigner
 					if(!result.Equals("")) result += "*";
 					result += expEvaluate;
 				}
+				if(result.Equals("")) return "1";
 			}
 			return result;
 		}
@@ -618,31 +719,35 @@ namespace FilterDesigner
 			else
 			{
 				Expression copy = exp.Copy();
-				copy.Parent = this;
+				//copy.Parent = this;
 				factors.Add(copy);
 			}
 			CleanUp();
 		}
 
-		public override void ReplaceChild(Expression oldChild, Expression newChild)
+		public override Expression ReplaceChild(Expression oldChild, Expression newChild)
 		{
+			Product copy = Copy() as Product;
 			int index = factors.IndexOf(oldChild);
-			Expression copy = newChild.Copy();
+			Expression childCopy = newChild.Copy();
 			if(index == -1)
 			{
-				factors.Add(copy);
+				factors.Add(childCopy);
 			}
 			else
 			{
-				factors[index] = copy;
+				factors[index] = childCopy;
 			}
-			copy.Parent = this;
+			//copy.Parent = this;
 			//copy.CleanUp();
+			return copy;
 		}
 
-		public override void RemoveChild(Expression child)
+		public override Expression RemoveChild(Expression child)
 		{
-			factors.Remove(child);
+			Product copy = Copy() as Product;
+			copy.factors.Remove(child);
+			return copy;
 		}
 
 		public override Expression Multiply(Expression factor)
@@ -662,41 +767,56 @@ namespace FilterDesigner
 		{ // Standardform is a product of final sums&valueexpressions
 			Product result = Copy() as Product;
 			//if(ContainsFraction()) return null;
-			while(!result.factors.All(e => (e is Sum || e is ValueExpression || e is Division)))
+			do
 			{
+				for(int i = 0; i < result.factors.Count; i++)
+				{
+					result.factors[i] = result.factors[i].ToStandardForm();
+				}
 				while(result.factors.Any(s => s is Product))
 				{
 					Product product = result.factors.First(s => s is Product) as Product;
-					result.RemoveChild(product);
+					result = result.RemoveChild(product) as Product;
 					result = result.Merge(product) as Product;
 				}
-				foreach(Sum sum in factors.Where(s => s is Sum))
-				{ // Product contains Sums,Products&ValueExpressions
-					sum.ToStandardForm();
-				}
-			}
-			result.Parent = Parent;
+				//for(int i = 0; i<factors.Count; i++)
+				//{ // Product contains Sums,Products&ValueExpressions
+				//	if(factors[i] is Sum)
+				//		factors[i] = factors[i].ToStandardForm();
+				//}
+			} while(!result.factors.All(e => (e is Sum || e is ValueExpression || e is Division)));
+			//for(int i = 0; i < result.factors.Count; i++)
+			//{
+			//	result.factors[i].Parent = result;
+			//}
+			//result.Parent = Parent;
 			return result;
 		}
 
-		public Sum ToSum()
+		public Expression ToSum()
 		{
 			Product copy = Copy() as Product;
 			Sum result = new Sum();
 			Product productWithoutSums = new Product(copy.factors.Where(f => f is ValueExpression).ToList());
-			result.AddSummand(productWithoutSums);
+			if(productWithoutSums.factors.Count == 0)
+			{
+				result.AddSummand(1);
+			}
+			else
+			{
+				result.AddSummand(productWithoutSums);
+			}
 			//List<Expression> sumlessFactors = factors..(f => f is ValueExpression);
 			foreach(Sum sum in copy.factors.Where(f => f is Sum))
 			{
 				result = Sum.MultiplySums(result, sum);
 			}
-			return result;
+			return result.Unpack();
 		}
 
-		public override bool Equals(object other)
+		public bool Equal(Product other)
 		{
-			if(!(other is Product)) return false;
-			if(factors.Count != (other as Product).factors.Count) return false;
+			if(factors.Count != other.factors.Count) return false;
 			List<int> visitedIndices = new List<int>();
 			for(int i = 0; i < factors.Count; i++)
 			{
@@ -704,7 +824,7 @@ namespace FilterDesigner
 				do
 				{
 					newIndex++;
-					newIndex = (other as Product).factors.IndexOf(factors[i], newIndex);
+					newIndex = other.factors.IndexOf(factors[i], newIndex);
 					if(newIndex == -1) return false;
 				}
 				while(visitedIndices.Contains(newIndex));
@@ -741,7 +861,7 @@ namespace FilterDesigner
 		}
 
 		public override List<Expression> GetDenominators(List<Expression> result = null)
-		{	// Copies necessary?
+		{
 			List<Expression> newResult;
 			if(result == null)
 				newResult = new List<Expression>();
@@ -764,13 +884,31 @@ namespace FilterDesigner
 			foreach(Expression exp in factors)
 			{
 				Expression subCopy = exp.Copy();
-				subCopy.Parent = this;
+				//subCopy.Parent = this;
 				copy.factors.Add(subCopy);
 			}
 			return copy;
 		}
 
-		public void CleanUp()
+		public override Expression Unpack()
+		{
+			if(factors.Count == 1)
+			{
+				return factors[0].Unpack();
+			}
+			else
+			{
+				//Product unpacked = Copy() as Product;
+				//for(int i = 0; i < unpacked.factors.Count; i++)
+				//{
+				//	unpacked.factors[i] = unpacked.factors[i].Unpack();
+				//}
+				//return unpacked;
+				return this;
+			}
+		}
+
+		public void CleanUp() // Remove?
 		{
 			List<Expression> factorsToRemove = new List<Expression>();
 			foreach(Expression exp in factors)
@@ -787,7 +925,7 @@ namespace FilterDesigner
 			}
 			if(factors.Count == 1)	// Careful, don't have references to this from outside
 			{
-				Parent?.ReplaceChild(this, factors[0]);
+				//Parent?.ReplaceChild(this, factors[0]);
 			}
 		}
 	}
@@ -804,7 +942,7 @@ namespace FilterDesigner
 			set
 			{
 				numerator = value;
-				value.Parent = this;
+				//value.Parent = this;
 			}
 		}
 
@@ -818,7 +956,7 @@ namespace FilterDesigner
 			set
 			{
 				denominator = value;
-				value.Parent = this;
+				//value.Parent = this;
 			}
 		}
 
@@ -861,38 +999,41 @@ namespace FilterDesigner
 
 		public override Expression ToCommonDenominator()
 		{
-			return Copy();
+			return this;
 		}
 
-		public override void ReplaceChild(Expression oldChild, Expression newChild)
+		public override Expression ReplaceChild(Expression oldChild, Expression newChild)
 		{
+			Division copy = Copy() as Division;
 			if(numerator.Equals(denominator))
 			{
-				Parent?.ReplaceChild(this, 1);
-				return;
+				return 1;
 			}
-			Expression copy = newChild.Copy();
+			Expression childCopy = newChild.Copy();
 			if(numerator.Equals(oldChild))
 			{
-				Numerator = copy;
+				copy.Numerator = childCopy;
 			}
 			else if(denominator.Equals(oldChild))
 			{
-				Denominator = copy;
+				copy.Denominator = childCopy;
 			}
-			copy.Parent = this;
+			//copy.Parent = this;
+			return copy;
 		}
 
-		public override void RemoveChild(Expression child)
+		public override Expression RemoveChild(Expression child)
 		{
+			Division copy = Copy() as Division;
 			if(Numerator.Equals(child))
 			{
-				Numerator = null;
+				copy.Numerator = null;
 			}
 			else if(Denominator.Equals(child))
 			{
-				Denominator = null;
+				copy.Denominator = null;
 			}
+			return copy;
 		}
 
 		public override Expression Multiply(Expression factor)
@@ -900,7 +1041,7 @@ namespace FilterDesigner
 			Division copy = Copy() as Division;
 			if(copy.denominator.Equals(factor))
 			{
-				Parent?.ReplaceChild(this, copy.numerator);
+				//Parent?.ReplaceChild(this, copy.numerator);
 				return copy.numerator;
 			}
 			else if(copy.denominator is Product && (copy.denominator as Product).Contains(factor))
@@ -909,16 +1050,15 @@ namespace FilterDesigner
 			}
 			else
 			{
-				copy.numerator.Multiply(factor);
+				copy.numerator = copy.numerator.Multiply(factor);
 			}
 			return copy;
 		}
 
-		public override bool Equals(object other)
+		public bool Equal(Division other)
 		{
-			if(!(other is Division)) return false;
-			if(!(other as Division).numerator.Equals(numerator)) return false;
-			if(!(other as Division).denominator.Equals(denominator)) return false;
+			if(!other.numerator.Equals(numerator)) return false;
+			if(!other.denominator.Equals(denominator)) return false;
 			return true;
 		}
 
@@ -945,20 +1085,89 @@ namespace FilterDesigner
 		public override Expression ToStandardForm()
 		{ // Handle Double Fraction
 			Division copy = Copy() as Division;
-			while(copy.numerator.ContainsFraction() || copy.denominator.ContainsFraction())
+			do
 			{
-				if(copy.numerator is Division)
-				{
-					copy.denominator = copy.denominator.Multiply((copy.numerator as Division).denominator);
-					copy.Numerator = (copy.numerator as Division).numerator;
-				}
-				if(copy.denominator is Division)
-				{
-					copy.numerator = copy.numerator.Multiply((copy.denominator as Division).denominator);
-					copy.Denominator = (copy.denominator as Division).numerator;
-				}
 				copy.numerator = copy.numerator.ToStandardForm();
 				copy.denominator = copy.denominator.ToStandardForm();
+				List<Expression> numFactors;
+				List<Expression> factorsToRemove = new List<Expression>();
+				if(copy.numerator is Product)
+				{
+					numFactors = (copy.numerator as Product).Factors;
+				}
+				else
+				{
+					numFactors = new List<Expression> { copy.numerator };
+				}
+				if(copy.denominator is Product)
+				{
+					Product denProd = copy.denominator as Product;
+					while(denProd.Factors.Any(numFactors.Contains))
+					{
+						Expression commonFactor = denProd.Factors.First(numFactors.Contains);
+						denProd = denProd.RemoveChild(commonFactor) as Product;
+						numFactors.Remove(commonFactor);
+					}
+					if(numFactors.Count == 0)
+					{
+						copy.numerator = 1;
+					}
+					else if(numFactors.Count == 1)
+					{
+						copy.numerator = numFactors[0];
+					}
+					else
+					{
+						copy.numerator = new Product(numFactors);
+					}
+
+					if(denProd.Factors.Count == 0)
+					{
+						return copy.numerator.ToStandardForm();
+					}
+					else if(denProd.Factors.Count == 1)
+					{
+						copy.denominator = denProd.Factors[0].Copy();
+					}
+					else
+					{
+						copy.denominator = denProd;
+					}
+				}
+				else if(numFactors.Contains(copy.denominator))
+				{
+					numFactors.Remove(copy.denominator);
+					if(numFactors.Count == 0)
+					{
+						return 1;
+					}
+					else if(numFactors.Count == 1)
+					{
+						return numFactors[0].ToStandardForm();
+					}
+					else
+					{
+						return new Product(numFactors);
+					}
+				}
+				if(copy.denominator.Equals(1)) return numerator.ToStandardForm();
+
+				if(copy.numerator is Division && copy.denominator is Division)
+				{
+					Division oldNum = copy.numerator as Division;
+					copy.numerator = oldNum.numerator * (copy.denominator as Division).denominator;
+					copy.denominator = oldNum.denominator * (copy.denominator as Division).numerator;
+				}
+				else if(copy.numerator is Division)
+				{
+					copy.denominator = copy.denominator.Multiply((copy.numerator as Division).denominator);
+					copy.numerator = (copy.numerator as Division).numerator;
+				}
+				else if(copy.denominator is Division)
+				{
+					copy.numerator = copy.numerator.Multiply((copy.denominator as Division).denominator);
+					copy.denominator = (copy.denominator as Division).numerator;
+				}
 				List<Expression> dens = new List<Expression>();
 				if(copy.numerator is Product)
 				{
@@ -981,15 +1190,31 @@ namespace FilterDesigner
 					copy.numerator = copy.numerator.Multiply(factor);
 					copy.denominator = copy.denominator.Multiply(factor);
 				}
+			} while(copy.numerator.ContainsFraction() || copy.denominator.ContainsFraction());
+			if(copy.denominator.Equals(1))
+			{
+				return copy.numerator.ToStandardForm();
 			}
-			copy.numerator.Parent = this;
-			copy.denominator.Parent = this;
-			copy.Parent = Parent;
+			if(copy.numerator is Product)
+			{
+				copy.numerator = (copy.numerator as Product).ToSum();
+			}
+			if(copy.denominator is Product)
+			{
+				copy.denominator = (copy.denominator as Product).ToSum();
+			}
+			if(copy.denominator.Equals(copy.numerator))
+			{
+				return 1;
+			}
+			//copy.numerator.Parent = this;
+			//copy.denominator.Parent = this;
+			//copy.Parent = Parent;
 			return copy;
 		}
 
 		public override List<Expression> GetDenominators(List<Expression> result = null)
-		{ // Copies necessary?
+		{
 			List<Expression> newResult;
 			if(result == null)
 				newResult = new List<Expression>();
@@ -1005,9 +1230,17 @@ namespace FilterDesigner
 				numerator = numerator.Copy(),
 				denominator = denominator.Copy()
 			};
-			copy.numerator.Parent = this;
-			copy.denominator.Parent = this;
+			//copy.numerator.Parent = this;
+			//copy.denominator.Parent = this;
 			return copy;
+		}
+
+		public override Expression Unpack()
+		{
+			if(denominator.Equals(1))
+				return numerator.Unpack();
+			else
+				return new Division(numerator.Unpack(), denominator.Unpack());
 		}
 	}
 
@@ -1054,52 +1287,44 @@ namespace FilterDesigner
 			return this;
 		}
 
-		public override void ReplaceChild(Expression oldChild, Expression newChild)
+		public override Expression ReplaceChild(Expression oldChild, Expression newChild)
 		{
+			return this;
 		}
 
-		public override void RemoveChild(Expression child)
+		public override Expression RemoveChild(Expression child)
 		{
-			return;
+			return this;
 		}
 		
 		public override Expression Multiply(Expression factor)
 		{
 			if(this.Equals(1))
 			{
-				Parent?.ReplaceChild(this, factor);
+				//Parent?.ReplaceChild(this, factor);
 				return factor;
 			}
 			else
 			{
 				Product p = new Product();
-				Parent?.ReplaceChild(this, p);
+				//Parent?.ReplaceChild(this, p);
 				p.AddFactor(factor);
 				p.AddFactor(this);
 				return p;
 			}
 		}
 
-		public override bool Equals(object other)
+		public bool Equal(ValueExpression other)
 		{
-			if(other is int)
+			if(value == null && other.value == null)
 			{
-				if(value == null)
-				{
-					return false;
-				}
-				return value.Equals(other.ToString());
+				return component == other.component;
 			}
-			if(!(other is ValueExpression)) return false;
-			if(value == null && (other as ValueExpression).value == null)
-			{
-				return component == (other as ValueExpression).component;
-			}
-			if(value == null || (other as ValueExpression).value == null)
+			if(value == null || other.value == null)
 			{
 				return false;
 			}
-			return value.Equals((other as ValueExpression).value);
+			return value.Equals(other.value);
 		}
 
 		public override int GetHashCode()
@@ -1144,6 +1369,11 @@ namespace FilterDesigner
 				value = this.value
 			};
 			return result;
+		}
+
+		public override Expression Unpack()
+		{
+			return this;
 		}
 	}
 }
