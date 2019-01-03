@@ -30,17 +30,6 @@ namespace FilterDesigner
 
 		public MainWindow()
 		{
-			//Expression standardFormTest = 2+(4 + new ValueExpression("s"))*(3+new ValueExpression("s"));
-			
-			// (s+1)/((1+s)(1+1/s))
-			ValueExpression s = new ValueExpression("s");
-
-			bool b = (s + 1).Equals((s*s+s+s+1)/(s+1));
-
-			//string s = "1/(sL)+1/(1+1/(sC))";
-			//List<string> fods = StringArithmetic.GetFirstOrderDenominators(s);
-			//string fraction = StringArithmetic.ToOneDenominator(s);
-
 			InitializeComponent();
 			Component.baseCanvas = canvas;
 			Net.baseCanvas = canvas;
@@ -278,17 +267,28 @@ namespace FilterDesigner
 					}
 				}
 
-				Division result = new Division();
-				result.Numerator = 1;
-				result.Denominator = new Sum();
-				foreach(List<Path> lp in listListPaths)
+				if(listListPaths.Count == 1)
 				{
-					Division div = new Division();
-					(result.Denominator as Sum).AddSummand(div);
-					div.Numerator = 1;
-					div.Denominator = GetExpressionOfPaths(lp);
+					return GetExpressionOfPaths(listListPaths[0]);
 				}
-				return result;
+				else
+				{
+					Division result = new Division
+					{
+						Numerator = 1,
+						Denominator = new Sum()
+					};
+					foreach(List<Path> lp in listListPaths)
+					{
+						Division div = new Division
+						{
+							Numerator = 1,
+							Denominator = GetExpressionOfPaths(lp)
+						};
+						(result.Denominator as Sum).AddSummand(div);
+					}
+					return result;
+				}
 			}
 			else
 			{
@@ -317,20 +317,10 @@ namespace FilterDesigner
 			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
 				return;
 			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
-			string impedance = GetImpedanceOfPaths(paths);
-			//tbResult.Text = impedance;
-			//List<string> result = StringArithmetic.GetSummands(impedance);
-			//string denom = StringArithmetic.GetDenominator(impedance);
 			Expression exp = GetExpressionOfPaths(paths);
 			exp = exp.ToCommonDenominator();
-			List<Expression> dens = exp.GetDenominators();
-			foreach(Expression denExp in dens)
-			{
-				string den = denExp.Evaluate();
-			}
-			exp.ToStandardForm();
-			string expression = exp.Evaluate();
-			tbResult.Text = expression;
+			exp = exp.ToStandardForm();
+			tbResult.Text = exp.Evaluate();
 		}
 
 		public void DrawAll()
@@ -757,9 +747,7 @@ namespace FilterDesigner
 				return numerator;
 			}
 			string result = "";
-
-
-
+			
 			if(numerator.Equals(1))
 			{
 				result += factor;
@@ -877,21 +865,8 @@ namespace FilterDesigner
 			Sum result = new Sum();
 			foreach(Component component in Components)
 			{
-				if(component is Capacitor)
-				{
-					Division div = new Division
-					{
-						Numerator = new ValueExpression("1"),
-						Denominator = new ValueExpression(component)
-					};
-					result.AddSummand(div);
-				}
-				else
-				{
-					result.AddSummand(new ValueExpression(component));
-				}
+				result.AddSummand(component.GetExpression());
 			}
-
 			return result;
 		}
 
@@ -1699,6 +1674,8 @@ namespace FilterDesigner
 		}
 
 		public abstract Impedance GetImpedance(double frequency);
+
+		public abstract Expression GetExpression();
 	}
 
 	public class Resistor : Component
@@ -1810,6 +1787,11 @@ namespace FilterDesigner
 		{
 			return new Impedance(Resistance);
 		}
+
+		public override Expression GetExpression()
+		{
+			return new ComponentExpression(this);
+		}
 	}
 
 	public class Inductor : Component
@@ -1915,6 +1897,11 @@ namespace FilterDesigner
 		public override Impedance GetImpedance(double frequency)
 		{
 			return new Impedance(0, 2 * Math.PI * frequency * Inductance);
+		}
+
+		public override Expression GetExpression()
+		{
+			return new Product(Expression.S, new ComponentExpression(this));
 		}
 	}
 
@@ -2041,6 +2028,19 @@ namespace FilterDesigner
 		public override Impedance GetImpedance(double frequency)
 		{
 			return new Impedance(0, 1 / (2 * Math.PI * frequency * Capacitance));
+		}
+
+		public override Expression GetExpression()
+		{
+			return new Division
+			{
+				Numerator = 1,
+				Denominator = new Product
+				(
+					Expression.S, 
+					new ComponentExpression(this)
+				)
+			};
 		}
 	}
 
