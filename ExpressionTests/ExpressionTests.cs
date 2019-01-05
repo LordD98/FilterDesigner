@@ -187,6 +187,19 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
+		public void ToStandardForm_SumSortSummands_EvaluateEqual()
+		{
+			Component C2 = new Capacitor("C2");
+			Expression s = Expression.S;
+			Expression exp = 1 + s + s*4*s*s + 3*s + s*C2.GetExpression()*s;
+			string expected = "4*s^3+s^2*C2+(1+3)*s+1";
+
+			exp = exp.ToStandardForm();
+
+			Assert.AreEqual(exp.Evaluate(), expected);
+		}
+
+		[TestMethod]
 		public void ToSum_EvaluateEqual()
 		{
 			Expression s = Expression.S;

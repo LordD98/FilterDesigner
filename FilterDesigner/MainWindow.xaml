@@ -107,7 +107,7 @@
 						SnapsToDevicePixels = "true" Width="80"/>
 				</Canvas>
 			</Button>
-			<TextBlock x:Name="tbResult" Grid.Column="1" Margin="5,5,0,0" Grid.Row="3" TextWrapping="Wrap"/>
+			<TextBox x:Name="tbxResult" Grid.Column="1" Margin="5,5,0,0" Grid.Row="3" TextWrapping="Wrap" SnapsToDevicePixels="True" Focusable="True" IsReadOnly="True"/>
 			<ComboBox x:Name="cbxNet1" Margin="5,5,0,5" Grid.Column="1" Grid.Row="4"/>
 			<ComboBox x:Name="cbxNet2" Margin="5,5,0,5" Grid.Column="1" Grid.Row="5"/>
 			<Button x:Name="btnTest" Content="Get Impedance" Margin="5,5,0,5" Click="BtnTest_Click" Grid.Column="1" Grid.Row="6"/>

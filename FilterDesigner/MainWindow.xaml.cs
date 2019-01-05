@@ -314,13 +314,18 @@ namespace FilterDesigner
 
 		private void BtnTest_Click(object sender, RoutedEventArgs e)
 		{
-			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+			if(cbxNet1.SelectedItem == null || cbxNet2.SelectedItem == null)
 				return;
+			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+			{
+				tbxResult.Text = "0";
+				return;
+			}
 			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
 			Expression exp = GetExpressionOfPaths(paths);
 			exp = exp.ToCommonDenominator();
 			exp = exp.ToStandardForm();
-			tbResult.Text = exp.Evaluate();
+			tbxResult.Text = exp.Evaluate();
 		}
 
 		public void DrawAll()
@@ -1506,7 +1511,7 @@ namespace FilterDesigner
 			PortB = new ConnectionPort();
 			PortA.MouseLeftButtonDown += (x, y) => Net.NetPort_Click(this, NetPort.A, y);
 			PortB.MouseLeftButtonDown += (x, y) => Net.NetPort_Click(this, NetPort.B, y);
-			MainWindow.allComponents.Add(this);
+			MainWindow.allComponents?.Add(this);
 		}
 
 		protected Component(string name, double x, double y) : this(name)

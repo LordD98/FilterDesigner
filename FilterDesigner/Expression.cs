@@ -205,6 +205,8 @@ namespace FilterDesigner
 
 		public abstract bool Contains(Expression other);
 
+		public abstract bool Contains(Func<Expression, bool> predicate);
+
 		public abstract List<Expression> GetDenominators(List<Expression> result=null);
 
 		public virtual Expression Multiply(Expression factor)
@@ -229,21 +231,21 @@ namespace FilterDesigner
 			return new ConstExpression(value);
 		}
 
-		public static Expression operator +(Expression exp1, Expression exp2)
+		public static Sum operator +(Expression exp1, Expression exp2)
 		{
 			if(exp1 is Sum || exp2 is Sum)
 			{
 				if(exp1 is Sum && exp2 is Sum) return (exp1 as Sum).Merge(exp2 as Sum);
-				Expression copy = null;
+				Sum copy = null;
 				if(exp1 is Sum)
 				{
-					copy = exp1.Copy();
-					(copy as Sum).AddSummand(exp2);
+					copy = exp1.Copy() as Sum;
+					copy.AddSummand(exp2);
 				}
 				if(exp2 is Sum)
 				{
-					copy = exp2.Copy();
-					(copy as Sum).AddSummand(exp1);
+					copy = exp2.Copy() as Sum;
+					copy.AddSummand(exp1);
 				}
 				return copy;
 			}
@@ -253,20 +255,20 @@ namespace FilterDesigner
 			}
 		}
 
-		public static Expression operator *(Expression exp1, Expression exp2)
+		public static Product operator *(Expression exp1, Expression exp2)
 		{
 			if(exp1 is Product || exp2 is Product)
 			{
 				if(exp1 is Product && exp2 is Product) return (exp1 as Product).Merge(exp2 as Product);
-				Expression copy = null;
+				Product copy = null;
 				if(exp1 is Product)
 				{
-					copy = exp1.Copy();
+					copy = exp1.Copy() as Product;
 					(copy as Product).AddFactor(exp2);
 				}
 				if(exp2 is Product)
 				{
-					copy = exp2.Copy();
+					copy = exp2.Copy() as Product;
 					(copy as Product).AddFactor(exp1);
 				}
 				return copy;
@@ -277,7 +279,7 @@ namespace FilterDesigner
 			}
 		}
 
-		public static Expression operator /(Expression exp1, Expression exp2)
+		public static Division operator /(Expression exp1, Expression exp2)
 		{
 			return new Division(exp1.Copy(), exp2.Copy());
 		}
@@ -312,25 +314,23 @@ namespace FilterDesigner
 			//CleanUp();
 		}
 
-		public Expression Merge(List<Expression> newSummands)
+		public Sum Merge(List<Expression> newSummands)
 		{
 			Sum copy = Copy() as Sum;
 			foreach(Expression exp in newSummands)
 			{
 				copy.AddSummand(exp);
 			}
-			//CleanUp();
 			return copy;
 		}
 
-		public Expression Merge(Sum sum)
+		public Sum Merge(Sum sum)
 		{
 			Sum copy = Copy() as Sum;
 			foreach(Expression exp in sum.Summands)
 			{
 				copy.AddSummand(exp);
 			}
-			//CleanUp();
 			return copy;
 		}
 
@@ -453,6 +453,7 @@ namespace FilterDesigner
 
 		public override Expression ToStandardForm()
 		{ // Standardform is a sum of final products, divisions & valueexpressions
+			//if(ContainsFraction()) return ToCommonDenominator().ToStandardForm();
 			Sum result = Copy() as Sum;
 			do
 			{
@@ -480,6 +481,67 @@ namespace FilterDesigner
 					}
 				}
 			} while(!result.Summands.All(e => (e is Product || e is ValueExpression || e is Division)));
+			if(result.Summands.Count < 2) return result.Unpack();
+			int[] summandPowers = new int[result.Summands.Count];
+			for(int i = 0; i<result.Summands.Count; i++)
+			{
+				if(result.Summands[i] is Product)
+				{
+					if((result.Summands[i] as Product).Factors[0] is ConstExpression && (result.Summands[i] as Product).Factors.Count > 1)
+					{
+						if((result.Summands[i] as Product).Factors[1] is S_Block)
+						{
+							summandPowers[i] = ((result.Summands[i] as Product).Factors[1] as S_Block).Exponent;
+						}
+					}
+					else if((result.Summands[i] as Product).Factors[0] is S_Block)
+					{
+						summandPowers[i] = ((result.Summands[i] as Product).Factors[0] as S_Block).Exponent;
+					}
+				}
+				else if(result.Summands[i] is S_Block)
+				{
+					summandPowers[i] = (result.Summands[i] as S_Block).Exponent;
+				}
+				else
+				{
+					summandPowers[i] = 0;
+				}
+			}
+			List<List<Expression>> listListSTerms = new List<List<Expression>>();
+			int smallestPower = summandPowers.Min()-1;
+			for(int i = 0; i<summandPowers.Length; i++)
+			{
+				smallestPower = summandPowers.Min(power => power>smallestPower ? power : Int32.MaxValue);
+				if(smallestPower == Int32.MaxValue) break;
+				listListSTerms.Add(new List<Expression>());
+				for(int j = 0; j<summandPowers.Length; j++)
+				{
+					if(smallestPower == summandPowers[j])
+					{
+						listListSTerms.Last().Add(result.Summands[j]);
+					}
+				}
+			}
+			if(listListSTerms.Count == 1)
+			{
+				if(listListSTerms[0].Count == 1)
+				{
+					return listListSTerms[0][0].Unpack();
+				}
+				else
+				{
+					foreach(Expression exp in listListSTerms[0])
+					{
+						// Void ausklammern erstellen?
+					}
+					//return new Product(new S_Block(summandPowers[0]), new Sum(...));
+				}
+			}
+			for(int i = 0; i<summandPowers.Length; i++)
+			{
+
+			}
 			return result.Unpack();
 		}
 
@@ -510,6 +572,11 @@ namespace FilterDesigner
 		public override bool Contains(Expression other)
 		{
 			return Summands.Contains(other);
+		}
+
+		public override bool Contains(Func<Expression, bool> predicate)
+		{
+			return Summands.Any(predicate);
 		}
 
 		public override bool ContainsFraction()
@@ -640,7 +707,7 @@ namespace FilterDesigner
 			}
 		}
 		
-		public Expression Merge(List<Expression> newFactors)
+		public Product Merge(List<Expression> newFactors)
 		{
 			Product copy = Copy() as Product;
 			foreach(Expression exp in newFactors)
@@ -650,7 +717,7 @@ namespace FilterDesigner
 			return copy;
 		}
 
-		public Expression Merge(Product prod)
+		public Product Merge(Product prod)
 		{
 			Product copy = Copy() as Product;
 			foreach(Expression exp in prod.Factors)
@@ -796,13 +863,13 @@ namespace FilterDesigner
 							newFactors.Add(result.Factors[i]);
 						}
 					}
-					if(const_count != 1)
-					{
-						newFactors.Add(new ConstExpression(const_count));
-					}
 					if(s_count != 0)
 					{
-						newFactors.Add(new S_Block(s_count));
+						newFactors.Insert(0, new S_Block(s_count));
+					}
+					if(const_count != 1)
+					{
+						newFactors.Insert(0, new ConstExpression(const_count));
 					}
 					result.Factors = newFactors;
 				}
@@ -901,6 +968,11 @@ namespace FilterDesigner
 		public override bool Contains(Expression other)
 		{
 			return Factors.Contains(other);
+		}
+
+		public override bool Contains(Func<Expression, bool> predicate)
+		{
+			return Factors.Any(predicate);
 		}
 
 		public override bool ContainsFraction()
@@ -1080,6 +1152,11 @@ namespace FilterDesigner
 			return Numerator.Equals(other) || Denominator.Equals(other);
 		}
 
+		public override bool Contains(Func<Expression, bool> predicate)
+		{
+			return Numerator.Contains(predicate) || Denominator.Contains(predicate);
+		}
+
 		public override bool ContainsFraction()
 		{
 			return true;
@@ -1240,6 +1317,7 @@ namespace FilterDesigner
 			else
 				return new Division(Numerator.Unpack(), Denominator.Unpack());
 		}
+
 	}
 
 	public abstract class ValueExpression : Expression
@@ -1267,6 +1345,11 @@ namespace FilterDesigner
 		public sealed override bool Contains(Expression other)
 		{
 			return false;
+		}
+
+		public sealed override bool Contains(Func<Expression, bool> predicate)
+		{
+			return predicate(this);
 		}
 
 		public sealed override bool ContainsFraction()
