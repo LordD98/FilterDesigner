@@ -121,10 +121,12 @@ namespace FilterDesigner
 			Expression exp2 = null;
 			if(other is int)
 			{
+				if((int)other == 1 && this is ValueExpression) return (this as ValueExpression).Is1();
 				exp2 = new ConstExpression((int)other);
 			}
 			else if(other is double)
 			{
+				if((double)other == 1.0 && this is ValueExpression) return (this as ValueExpression).Is1();
 				exp2 = new ConstExpression((double)other);
 			}
 			else if(other is Expression)
@@ -144,11 +146,11 @@ namespace FilterDesigner
 
 			if(exp1 is Product)
 			{
-				exp1 = (exp1 as Product).ToSum();
+				exp1 = (exp1 as Product).ToSum().Unpack().ToStandardForm();
 			}
 			if(exp2 is Product)
 			{
-				exp2 = (exp2 as Product).ToSum();
+				exp2 = (exp2 as Product).ToSum().Unpack().ToStandardForm();
 			}
 
 			if(exp1 is Division && exp2 is Division)
@@ -197,6 +199,8 @@ namespace FilterDesigner
 			//}
 			else return false;
 		}
+
+		public abstract bool IsConst();
 
 		public override int GetHashCode()
 		{
@@ -357,19 +361,20 @@ namespace FilterDesigner
 			return temp;
 		}
 
-		public void AddSummand(Expression exp)
+		public void AddSummand(Expression exp, int index = -1)
 		{
+			if(index == -1) index = Summands.Count;
 			if(exp is Sum)
 			{
 				foreach(Expression e in (exp as Sum).Summands)
 				{
-					AddSummand(e.Copy());
+					AddSummand(e.Copy(), index++);
 				}
 			}
 			else
 			{
 				Expression copy = exp.Copy();
-				Summands.Add(copy);
+				Summands.Insert(index, copy);
 			}
 		}
 
@@ -384,7 +389,8 @@ namespace FilterDesigner
 			}
 			else
 			{
-				copy.Summands[index] = childCopy;
+				copy.Summands.RemoveAt(index);
+				copy.AddSummand(childCopy, index);
 			}
 			return copy;
 		}
@@ -453,10 +459,24 @@ namespace FilterDesigner
 
 		public override Expression ToStandardForm()
 		{ // Standardform is a sum of final products, divisions & valueexpressions
-			//if(ContainsFraction()) return ToCommonDenominator().ToStandardForm();
+		  //if(ContainsFraction()) return ToCommonDenominator().ToStandardForm();
 			Sum result = Copy() as Sum;
 			do
 			{
+				if(result.Summands.Count(s => s.IsConst()) > 1)
+				{
+					double constSummand = 0;
+					result.Summands.ForEach(s =>
+					{
+						if(s.IsConst())
+						{
+							constSummand += (s.ToStandardForm() as ConstExpression).Value;
+						}
+					});
+					result.Summands.RemoveAll(s => s.IsConst());
+					result.Summands.Add(new ConstExpression(constSummand));
+				}
+
 				for(int i = 0; i < result.Summands.Count; i++)
 				{
 					result.Summands[i] = result.Summands[i].Unpack().ToStandardForm();
@@ -481,9 +501,9 @@ namespace FilterDesigner
 					}
 				}
 			} while(!result.Summands.All(e => (e is Product || e is ValueExpression || e is Division)));
-			if(result.Summands.Count < 2) return result.Unpack();
+			//if(result.Summands.Count < 2) return result.Unpack();
 			int[] summandPowers = new int[result.Summands.Count];
-			for(int i = 0; i<result.Summands.Count; i++)
+			for(int i = 0; i < result.Summands.Count; i++)
 			{
 				if(result.Summands[i] is Product)
 				{
@@ -508,41 +528,76 @@ namespace FilterDesigner
 					summandPowers[i] = 0;
 				}
 			}
-			List<List<Expression>> listListSTerms = new List<List<Expression>>();
-			int smallestPower = summandPowers.Min()-1;
-			for(int i = 0; i<summandPowers.Length; i++)
+			if(summandPowers.All(s => s==0)) return result.Unpack();
+			Dictionary<int, List<Expression>> dictListSTerms = new Dictionary<int, List<Expression>>();
+			int smallestPower = summandPowers.Min() - 1;
+			for(int i = 0; i < summandPowers.Length; i++)
 			{
-				smallestPower = summandPowers.Min(power => power>smallestPower ? power : Int32.MaxValue);
+				smallestPower = summandPowers.Min(power => power > smallestPower ? power : Int32.MaxValue);
 				if(smallestPower == Int32.MaxValue) break;
-				listListSTerms.Add(new List<Expression>());
-				for(int j = 0; j<summandPowers.Length; j++)
+				dictListSTerms.Add(smallestPower, new List<Expression>());
+				for(int j = 0; j < summandPowers.Length; j++)
 				{
 					if(smallestPower == summandPowers[j])
 					{
-						listListSTerms.Last().Add(result.Summands[j]);
+						dictListSTerms[smallestPower].Add(result.Summands[j]);
 					}
 				}
 			}
-			if(listListSTerms.Count == 1)
+			if(dictListSTerms.Count == 1)
 			{
-				if(listListSTerms[0].Count == 1)
+				if(dictListSTerms.First().Value.Count == 1)
 				{
-					return listListSTerms[0][0].Unpack();
+					return dictListSTerms.First().Value[0].Unpack();
 				}
 				else
 				{
-					foreach(Expression exp in listListSTerms[0])
+					S_Block commonSBlock = new S_Block(summandPowers[0]);
+					Sum commonTerms = new Sum();
+					foreach(Expression exp in dictListSTerms.First().Value)
 					{
-						// Void ausklammern erstellen?
+						if(exp is Sum)
+						{
+							commonTerms.AddSummand((exp as Sum).FactorOut(commonSBlock));
+						}
+						else if(exp is Product)
+						{
+							commonTerms.AddSummand((exp as Product).FactorOut(commonSBlock));
+						}
 					}
-					//return new Product(new S_Block(summandPowers[0]), new Sum(...));
+					return new Product(commonSBlock, commonTerms.Unpack());
 				}
 			}
-			for(int i = 0; i<summandPowers.Length; i++)
+			dictListSTerms = dictListSTerms.OrderByDescending(kvp => kvp.Key).ToDictionary(key => key.Key, val => val.Value);
+			Sum res = new Sum();
+			foreach(KeyValuePair<int, List<Expression>> kvp in dictListSTerms)
 			{
-
+				S_Block s_block = new S_Block(kvp.Key);
+				Sum sum = new Sum();
+				foreach(Expression expression in kvp.Value)
+				{
+					if(expression is Product)
+					{
+						sum.AddSummand((expression as Product).FactorOut(s_block));
+					}
+					else if(expression is S_Block)
+					{
+						if(expression.Equals(s_block))
+							sum.AddSummand(1);
+						else
+							sum.AddSummand(new S_Block((expression as S_Block).Exponent-kvp.Key));
+					}
+					else if(kvp.Key == 0)
+					{
+						sum.AddSummand(expression);
+					}
+				}
+				if(kvp.Key == 0)
+					res.AddSummand(sum.ToStandardForm());
+				else
+					res.AddSummand(new Product(s_block, sum.ToStandardForm()));
 			}
-			return result.Unpack();
+			return res.Unpack();
 		}
 
 		public bool Equal(Sum other)
@@ -562,6 +617,11 @@ namespace FilterDesigner
 				visitedIndices.Add(newIndex);
 			}
 			return true;
+		}
+
+		public override bool IsConst()
+		{
+			return Summands.All(s => s.IsConst());
 		}
 
 		public override int GetHashCode()
@@ -650,38 +710,23 @@ namespace FilterDesigner
 			}
 		}
 
-		/* Necessary?
-		public void CleanUp() 
+		public Expression FactorOut(Expression factor) // Doesn't handle Fractions
 		{
-			while(summands.Any(s => s is Sum))
+			if(Summands.Any(s => !s.Contains(factor) && !s.Equals(factor))) return null;
+			Sum result = Copy() as Sum;
+			for(int i = 0; i < result.Summands.Count; i++)
 			{
-				foreach(Expression exp in (summands.First(s => s is Sum) as Sum).summands)
+				if(result.Summands[i].Equals(factor))
 				{
-					summands.Add(exp.Copy());
+					result.Summands[i] = 1;
+				}
+				else if(result.Summands[i] is Product)
+				{
+					result.Summands[i] = (result.Summands[i] as Product).FactorOut(factor);
 				}
 			}
-			foreach(Sum sum in summands.Where(s => s is Sum))
-			{
-				foreach(Expression exp in sum.summands)
-				{
-					summands.Add(exp.Copy());
-				}
-			}
-			List<Expression> summandsToRemove = new List<Expression>();
-			foreach(Expression exp in summands)
-			{
-				if(exp.Equals(0))
-				{
-					summandsToRemove.Add(exp);
-				}
-			}
-			summandsToRemove.ForEach(f => summands.Remove(f));
-			if(summands.Count == 0)
-			{
-				summands.Add(0);
-			}
+			return result;
 		}
-		*/
 	}
 
 	public class Product : Expression
@@ -741,6 +786,7 @@ namespace FilterDesigner
 						continue;
 					}
 					if(expEvaluate.Equals("0")) return "0";
+					if(!result.Equals("") && !result.EndsWith(")")) result += "*";
 					result += "(" + expEvaluate + ")";
 				}
 				else
@@ -843,7 +889,7 @@ namespace FilterDesigner
 					result = result.RemoveChild(product) as Product;
 					result = result.Merge(product) as Product;
 				}
-				if(Factors.Count(f => f is ConstExpression) > 1 || Factors.Count(f => f is S_Block) > 1)
+				if(result.Factors.Count(f => f is ConstExpression) > 1 || result.Factors.Count(f => f is S_Block) > 1)
 				{
 					int s_count = 0;
 					double const_count = 1;
@@ -960,6 +1006,11 @@ namespace FilterDesigner
 			return false;
 		}
 
+		public override bool IsConst()
+		{
+			return Factors.All(f => f.IsConst());
+		}
+
 		public override int GetHashCode()
 		{
 			return base.GetHashCode();
@@ -967,6 +1018,21 @@ namespace FilterDesigner
 
 		public override bool Contains(Expression other)
 		{
+			if(other is S_Block)
+			{
+				int s_count = 0;
+				Factors.ForEach(e => { if(e is S_Block) s_count += (e as S_Block).Exponent; });
+				return s_count >= (other as S_Block).Exponent;
+			}
+			else if(other is Product)
+			{
+				foreach(Expression exp in (other as Product).Factors)
+				{
+					int count = (other as Product).Factors.Count(f => f.Equals(exp));
+					if(Factors.Count(f => f.Equals(exp)) < count) return false;
+				}
+				return true;
+			}
 			return Factors.Contains(other);
 		}
 
@@ -1041,6 +1107,40 @@ namespace FilterDesigner
 				//return unpacked;
 				return this;
 			}
+		}
+
+		public Expression FactorOut(Expression factor)
+		{
+			if(factor.Equals(1)) return this;
+			if(!(factor is S_Block) && !Factors.Contains(factor)) return null;
+			Product result = Copy() as Product;
+			if(factor is S_Block)
+			{
+				int s_count = 0;
+				Factors.ForEach(e => { if(e is S_Block) s_count += (e as S_Block).Exponent; });
+				if((factor as S_Block).Exponent > s_count) return null;
+				s_count = (factor as S_Block).Exponent;
+				while(s_count > 0)
+				{
+					int first_s_index = result.Factors.FindIndex(f => f is S_Block);
+					if((result.Factors[first_s_index] as S_Block).Exponent > (factor as S_Block).Exponent)
+					{
+						(result.Factors[first_s_index] as S_Block).Exponent -= s_count;
+						result.Factors.RemoveAt(first_s_index);
+						s_count = 0;
+					}
+					else
+					{
+						s_count -= (result.Factors[first_s_index] as S_Block).Exponent;
+						result.Factors.RemoveAt(first_s_index);
+					}
+				}
+			}
+			else
+			{
+				result.Factors.Remove(factor);
+			}
+			return result;
 		}
 	}
 
@@ -1170,6 +1270,12 @@ namespace FilterDesigner
 		public override Expression ToStandardForm()
 		{ // Handle Double Fraction
 			Division copy = Copy() as Division;
+			if(Numerator.IsConst() && Denominator.IsConst())
+			{
+				ConstExpression num = Numerator.ToStandardForm() as ConstExpression;
+				ConstExpression den = Denominator.ToStandardForm() as ConstExpression;
+				return new ConstExpression(num.Value / den.Value);
+			}
 			do
 			{
 				copy.Numerator = copy.Numerator.Unpack().ToStandardForm();
@@ -1275,6 +1381,11 @@ namespace FilterDesigner
 					copy.Numerator = copy.Numerator.Multiply(factor);
 					copy.Denominator = copy.Denominator.Multiply(factor);
 				}
+				if(dens.Count > 0)
+				{
+					copy.Numerator = copy.Numerator.ToStandardForm();
+					copy.Denominator = copy.Denominator.ToStandardForm();
+				}
 			} while(copy.Numerator.ContainsFraction() || copy.Denominator.ContainsFraction());
 			if(copy.Denominator.Equals(1))
 			{
@@ -1293,6 +1404,11 @@ namespace FilterDesigner
 				return 1;
 			}
 			return copy.Unpack();
+		}
+		
+		public override bool IsConst()
+		{
+			return Numerator.IsConst() && Denominator.IsConst();
 		}
 
 		public override List<Expression> GetDenominators(List<Expression> result = null)
@@ -1488,13 +1604,18 @@ namespace FilterDesigner
 			}
 			return null;
 		}
-		
+
 		public override Expression Copy()
 		{
 			return new ComponentExpression(component);
 		}
 
 		public override bool Is1()
+		{
+			return false;
+		}
+		
+		public override bool IsConst()
 		{
 			return false;
 		}
@@ -1518,7 +1639,7 @@ namespace FilterDesigner
 		{
 			return new Impedance(Value);
 		}
-		
+
 		public override Expression Copy()
 		{
 			return new ConstExpression(Value);
@@ -1527,6 +1648,11 @@ namespace FilterDesigner
 		public override bool Is1()
 		{
 			return Value == 1;
+		}
+		
+		public override bool IsConst()
+		{
+			return true;
 		}
 	}
 
@@ -1570,6 +1696,11 @@ namespace FilterDesigner
 		public override bool Is1()
 		{
 			return Exponent == 0;
+		}
+
+		public override bool IsConst()
+		{
+			return false;
 		}
 	}
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -69,15 +70,6 @@ namespace FilterDesigner
 
 			//DrawAll();
 		}
-
-		public string Simplify(string expression)
-		{
-			if(!expression.Contains('/'))
-				return expression;
-			//string pattern = @"";
-			return "";
-		}
-
 
 		public List<Path> FindPaths(Net A, Net B)
 		{
@@ -155,7 +147,10 @@ namespace FilterDesigner
 		public string GetImpedanceOfPaths(List<Path> paths)
 		{
 			if(paths.Count == 0)
+			{
+				Debug.Assert(false, "Paths are empty!");
 				return null;
+			}
 			string impedance = "";
 
 			if(paths.Count == 1)
@@ -312,6 +307,54 @@ namespace FilterDesigner
 			}
 		}
 
+		public List<Net> GetCommonNets(List<Path> paths)
+		{
+			// Find all nets that are common to all paths
+			if(!paths.All(p => p.Start == paths[0].Start && p.End == paths[0].End)) return null;
+			List<Net> commonNets = new List<Net> { paths[0].Start };
+			foreach(Net intermediateNet in paths[0].GetIntermediateNets())
+			{
+				if(paths.All(p => p.ContainsNet(intermediateNet)))
+				{
+					commonNets.Add(intermediateNet);
+				}
+			}
+			commonNets.Add(paths[0].End);
+			return commonNets;
+		}
+
+		public Expression GetTransferFunction(Net netA1, Net netA2, Net netB1, Net netB2)
+		{
+			List<Path> inputPaths = FindPaths(netA1, netA2);
+			List<Path> unusedPaths = inputPaths.Where(p => !p.ContainsNet(netB1) && !p.ContainsNet(netB2)).ToList();
+			List<Path> endPaths = inputPaths.Where(p => p.ContainsNet(netB1) && p.ContainsNet(netB2)).ToList();
+			//List<Path> directEndPaths = FindPaths(netB1, netB2).Where(p => !p.ContainsNet(netA1) && !p.ContainsNet(netA2)).ToList();
+			if(ContainsBridge(inputPaths))
+			{
+				Debug.Assert(false, "Paths contain Bridge!");
+				return null;
+			}
+			
+			Path firstPath = endPaths[0];
+			{
+				List<Net> tempInternNets = firstPath.GetIntermediateNets();
+				if(tempInternNets.IndexOf(netB1) > tempInternNets.IndexOf(netB2))
+				{
+					endPaths.ForEach(p => p.Components.Reverse());
+				}
+			}
+
+			return null;
+		}
+
+		public bool ContainsBridge(List<Path> listPaths)
+		{
+			// if any path conatins a component which is in another path in the other direction
+			if(listPaths.Any(p1 => listPaths.Any(p2 => p2 != p1 && p2.Components.Any(c => p1.Components.Contains(c) && p2.GetNet1(c) != p1.GetNet1(c)))))
+				return true;
+			else return false;
+		}
+
 		private void BtnTest_Click(object sender, RoutedEventArgs e)
 		{
 			if(cbxNet1.SelectedItem == null || cbxNet2.SelectedItem == null)
@@ -322,10 +365,13 @@ namespace FilterDesigner
 				return;
 			}
 			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
+
 			Expression exp = GetExpressionOfPaths(paths);
 			exp = exp.ToCommonDenominator();
 			exp = exp.ToStandardForm();
 			tbxResult.Text = exp.Evaluate();
+
+			tbxResult.Text = ContainsBridge(paths).ToString();
 		}
 
 		public void DrawAll()
@@ -421,6 +467,7 @@ namespace FilterDesigner
 			}
 		}
 	}
+
 
 	public static class StringArithmetic
 	{
@@ -783,6 +830,14 @@ namespace FilterDesigner
 			result = result.Remove(result.Length - 1, 1);
 			return result;
 		}
+
+		public static string Simplify(string expression)
+		{
+			if(!expression.Contains('/'))
+				return expression;
+			//string pattern = @"";
+			return "";
+		}
 	}
 
 	public class Path
@@ -837,6 +892,18 @@ namespace FilterDesigner
 			//return false;
 		}
 
+		public Net GetNet1(Component comp)
+		{
+			if(!Components.Contains(comp)) return null;
+			return GetAllNets().Find(n => comp.IsConnected(n));
+		}
+
+		public Net GetNet2(Component comp)
+		{
+			if(!Components.Contains(comp)) return null;
+			return GetAllNets().FindLast(n => comp.IsConnected(n));
+		}
+
 		public List<Net> GetIntermediateNets()
 		{
 			List<Net> nets = new List<Net>();
@@ -850,7 +917,20 @@ namespace FilterDesigner
 				nets.Add(component.OtherNet(previousNet));
 				previousNet = component.OtherNet(previousNet);
 			}
+			Debug.Assert(false);
 			return nets;    // Shouldn't happen
+		}
+
+		public List<Net> GetAllNets()
+		{
+			List<Net> nets = new List<Net> { Start };
+			Net previousNet = Start;
+			foreach(Component component in Components)
+			{
+				nets.Add(component.OtherNet(previousNet));
+				previousNet = component.OtherNet(previousNet);
+			}
+			return nets;
 		}
 
 		public string GetImpedance()
@@ -1330,6 +1410,7 @@ namespace FilterDesigner
 		public static void NetPort_Click(Component newComponent, NetPort newPort, MouseButtonEventArgs e)
 		{
 			e.Handled = true;
+			newComponent.HideNetPort(newPort);
 			Net newNet;
 			Branchpoint newBranchPoint;
 			(double point_x, double point_y) = newComponent.GetPortCoordinates(newPort);
@@ -1505,7 +1586,7 @@ namespace FilterDesigner
 				SnapsToDevicePixels = true
 			};
 			VisualGroup.MouseLeftButtonDown += (x, y) => Symbol_MouseLeftDown(this, y);
-			VisualGroup.MouseRightButtonDown += (x, y) => Symbol_RightClick(this, y);
+			VisualGroup.MouseRightButtonDown += (x, y) => Symbol_MouseRightDown(this, y);
 			Panel.SetZIndex(VisualGroup, 0);
 			PortA = new ConnectionPort();
 			PortB = new ConnectionPort();
@@ -1564,6 +1645,34 @@ namespace FilterDesigner
 				{
 					Panel.SetZIndex(elem, baseCanvasMaxZIndex + 2);
 				}
+				else if(elem is Ellipse)	// Branchpoint
+				{
+					Panel.SetZIndex(elem, baseCanvasMaxZIndex + 3);
+				}
+			}
+		}
+
+		public void HideNetPort(NetPort port)
+		{
+			if(port == NetPort.A)
+			{
+				PortA.Visibility = Visibility.Collapsed;
+			}
+			else
+			{
+				PortB.Visibility = Visibility.Collapsed;
+			}
+		}
+
+		public void ShowNetPort(NetPort port)
+		{
+			if(port == NetPort.A)
+			{
+				PortA.Visibility = Visibility.Visible;
+			}
+			else
+			{
+				PortB.Visibility = Visibility.Visible;
 			}
 		}
 
@@ -1621,7 +1730,7 @@ namespace FilterDesigner
 			}
 		}
 
-		public static void Symbol_RightClick(Component sender, MouseButtonEventArgs e)
+		public static void Symbol_MouseRightDown(Component sender, MouseButtonEventArgs e)
 		{
 			string message = "";
 			message += $"Name: {sender.Name}\n";
