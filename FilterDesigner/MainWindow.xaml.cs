@@ -30,7 +30,8 @@ namespace FilterDesigner
 		public enum ComponentType { None, Resistor, Capacitor, Inductor };
 		public static ComponentType ComponentToAdd = ComponentType.None;
 
-		
+		public static RoutedCommand Clear = new RoutedUICommand("Clear", "Clear", typeof(MainWindow));
+
 		public MainWindow()
 		{
 			InitializeComponent();
@@ -46,6 +47,7 @@ namespace FilterDesigner
 			};
 			canvas.MouseLeftButtonUp += Component.Symbol_MouseUp;
 			canvas.MouseMove += Component.Symbol_MouseMove;
+
 			ButtonBackgroundBrush = btnResistor.Background;
 			//Toolbox.DataContext = Component;
 
@@ -73,7 +75,7 @@ namespace FilterDesigner
 			//DrawAll();
 		}
 
-		public List<Path> FindPaths(Net A, Net B)
+		public List<Path> FindPaths(Net A, Net B, List<Component> forbiddenComponents = null)
 		{
 			List<Path> paths = new List<Path>();
 			bool done = false;
@@ -112,23 +114,18 @@ namespace FilterDesigner
 					continue;
 				}
 
-				if(currentPath.Components.Contains(currentComp))
+				if(currentPath.Components.Contains(currentComp)
+					|| (forbiddenComponents?.Contains(currentComp)??false)
+					||	currentNetOrder.Contains(currentComp.OtherNet(currentNet))
+					|| currentComp.IsUseless())    // comp. is connected badly
 				{
 					continue;
 				}
 				else
 				{
-					if(currentComp.IsUseless())    // comp. is connected badly
-					{
-						continue;
-					}
-					else if(currentComp.IsConnected(B))
+					if(currentComp.IsConnected(B))
 					{
 						paths.Add(currentPath.Copy().Add(currentComp));
-						continue;
-					}
-					else if(currentNetOrder.Contains(currentComp.OtherNet(currentNet)))
-					{
 						continue;
 					}
 					else
@@ -144,6 +141,22 @@ namespace FilterDesigner
 			}
 
 			return paths;
+		}
+
+		public List<Component> GetComponentsInPaths(List<Path> paths)
+		{
+			List<Component> result = new List<Component>();
+			foreach(Path path in paths)
+			{
+				foreach(Component comp in path.Components)
+				{
+					if(!result.Contains(comp))
+					{
+						result.Add(comp);
+					}
+				}
+			}
+			return result;
 		}
 
 		public string GetImpedanceOfPaths(List<Path> paths)
@@ -328,48 +341,61 @@ namespace FilterDesigner
 		public Expression GetTransferFunction(Net netA1, Net netA2, Net netB1, Net netB2)
 		{
 			List<Path> inputPaths = FindPaths(netA1, netA2);
-			List<Path> unusedPaths = inputPaths.Where(p => !p.ContainsNet(netB1) && !p.ContainsNet(netB2)).ToList();
 			List<Path> endPaths = inputPaths.Where(p => p.ContainsNet(netB1) && p.ContainsNet(netB2)).ToList();
+			List<Path> unusedPaths = inputPaths.Where(p => !p.Components.Any(c => endPaths.Any(p2 => p2.Components.Contains(c)))).ToList();
 			//List<Path> directEndPaths = FindPaths(netB1, netB2).Where(p => !p.ContainsNet(netA1) && !p.ContainsNet(netA2)).ToList();
 			if(ContainsBridge(inputPaths))
 			{
 				Debug.Assert(false, "Paths contain Bridge!");
 				return null;
 			}
+			inputPaths = inputPaths.Where(p => !unusedPaths.Contains(p)).ToList();
 
 			Path firstPath = endPaths[0];
 			{
-				List<Net> tempInternNets = firstPath.GetIntermediateNets();
+				List<Net> tempInternNets = firstPath.GetAllNets();
 				if(tempInternNets.IndexOf(netB1) > tempInternNets.IndexOf(netB2))
 				{
 					endPaths.ForEach(p => p.Components.Reverse());
 				}
 			}
 
-			List<Net> nets = endPaths[0].GetAllNets();
-			Net upper = netB1;
-			Net lower = netB2;
-
-			do
+			if(inputPaths.Count == endPaths.Count())
 			{
-				do
-				{
-					upper = firstPath.GetPreviousNet(upper);
-				} while(!endPaths.All(p => p.ContainsNet(upper)) && upper != netA1);
-				do
-				{
-					lower = firstPath.GetNextNet(lower);
-				} while(!endPaths.All(p => p.ContainsNet(lower)) && lower != netA2);
+				return new Division(
+					GetExpressionOfPaths(FindPaths(netB1, netB2, GetComponentsInPaths(unusedPaths))),
+					GetExpressionOfPaths(FindPaths(netA1, netA2, GetComponentsInPaths(unusedPaths)))
+				);
+			}
 
-				if(inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(upper)))
-				{
-					Debugger.Break();
+			List<Net> commonNets = GetCommonNets(endPaths);
+			int upperNet = commonNets.IndexOf(netB1);
+			int lowerNet = commonNets.IndexOf(netB2);
+
+			Expression result = 1;
+			while(true)
+			{
+				while(upperNet > 0 && !inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[upperNet])))
+				{// TODO: handle edge cases?
+					upperNet--;
 				}
+				while(lowerNet < commonNets.Count-1 && !inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[lowerNet])))
+				{// TODO: handle edge cases?
+					lowerNet++;
+				}
+				
+				Net upper = commonNets[upperNet];
+				Net lower = commonNets[lowerNet];
 
+				//if(upper == netA1 && lower == netA2) return result;
 
-			} while(true);
-
-			return null;
+				return GetTransferFunction(upper, lower, netB1, netB2) * GetTransferFunction(netA1, netA2, upper, lower);
+				//result = result * GetTransferFunction(netA1, netA2, upper, lower);
+				//endPaths.AddRange(inputPaths.Where(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[upperNet])));
+				//commonNets = GetCommonNets(endPaths);
+				//upperNet = commonNets.IndexOf(upper);
+				//lowerNet = commonNets.IndexOf(lower);
+			}
 		}
 
 		public bool ContainsBridge(List<Path> listPaths)
@@ -398,7 +424,14 @@ namespace FilterDesigner
 
 			//tbxResult.Text = ContainsBridge(paths).ToString();
 
-			//GetTransferFunction(allNets.First(n => n.Name == "$0"),);
+			Expression transferFunction = GetTransferFunction
+			(
+				allNets.First(n => n.Name == "$0"),
+				allNets.First(n => n.Name == "$3"),
+				allNets.First(n => n.Name == "$2"),
+				allNets.First(n => n.Name == "$3")
+			);
+			MessageBox.Show(transferFunction.ToCommonDenominator().ToStandardForm().ToStandardForm().ToString(), "Result:");
 		}
 
 		public void DrawAll()
@@ -508,15 +541,43 @@ namespace FilterDesigner
 				setting += "\n";
 			}
 			tbxResult.Text = setting;
-			//File.WriteAllText("Settings.txt", setting);
+			File.WriteAllText("Settings.txt", setting);
 		}
 
 		private void Open_Executed(object sender, RoutedEventArgs e)
 		{
-
+			Clear_Executed();
+			string setting = File.ReadAllText("Settings.txt").Replace("\r","");
+			int i = 0;
+			while(i<setting.Length)
+			{
+				int endIndex = setting.IndexOf('\n', i);
+				if(endIndex == -1) endIndex = setting.Length - 1;
+				if(endIndex < setting.Length-2)
+				{
+					if(setting[endIndex + 1] == '{')
+					{
+						endIndex = setting.IndexOf('}', i);
+					}
+				}
+				switch(setting[i])
+				{
+					case 'N':
+						Net.ImportNet(setting.Substring(i, endIndex - i + 1));
+						break;
+					case 'R':
+					case 'L':
+					case 'C':
+						Component comp = Component.ImportComponent(setting.Substring(i, endIndex - i + 1).Replace("\n",""));
+						comp.Draw();
+						break;
+				}
+				i = endIndex+1;
+			}
+			
 		}
 
-		private void MenuItem_Clear_Click(object sender, RoutedEventArgs e)
+		private void Clear_Executed(object sender = null, RoutedEventArgs e = null)
 		{
 			allComponents.Clear();
 			allNets.Clear();
@@ -528,8 +589,6 @@ namespace FilterDesigner
 			Net.attachedNet = null;
 			Net.wireAttached = false;
 		}
-
-
 	}
 
 	public static class StringArithmetic
@@ -1166,6 +1225,39 @@ namespace FilterDesigner
 			baseCanvas.Children.Add(connectionMarker);
 		}
 
+		public static Branchpoint ImportBranchpoint(string str, Net net)
+		{
+			string[] data = str.Split(';');
+			Branchpoint bp;
+			try
+			{
+				bp = new Branchpoint(net, double.Parse(data[1]), double.Parse(data[2]));
+				string[] connectedWires = data[3].Split('.');
+				foreach(string s in connectedWires)
+				{
+					string[] wire = s.Split(',');
+					int wireIndex = Int32.Parse(wire[0]);
+					LineEndPoint lep = (LineEndPoint)Int32.Parse(wire[1]);
+					bp.wires[net.wires[wireIndex]] = lep;
+				}
+			}
+			catch
+			{
+				bp = null;
+			}
+			return bp;
+		}
+
+		public string ExportBranchpoint()
+		{
+			string result = $"B;{X};{Y};";
+			foreach(KeyValuePair<Line,LineEndPoint> kvp in wires)
+			{
+				result += $"{net.wires.IndexOf(kvp.Key)},{(int)kvp.Value}.";
+			}
+			return result.Substring(0,result.Length-1);
+		}
+
 		public void Branchpoint_MouseDown(object sender, MouseButtonEventArgs e)
 		{
 			e.Handled = true;
@@ -1233,7 +1325,7 @@ namespace FilterDesigner
 			if(mousedownBranchpoint == this)
 			{
 				branchpointMoving = true;
-				if(net.Components.Count(c => net.connections[c].Contains(this)) == 0)
+				if(net.Components.Count(c => net.connections[c].Any(t => t.Item1==this)) == 0)
 				{
 					Point mousePos = Mouse.GetPosition(baseCanvas);
 					X = mousePos.X;
@@ -1249,9 +1341,9 @@ namespace FilterDesigner
 			message += $"{wires.Count} ";
 			message += (wires.Count == 1) ? "Wire" : "Wires";
 			message += " attached\n";
-			if(net.connections.Count(x => (x.Value.Contains(this))) > 0)
+			if(net.connections.Count(x => (x.Value.Any(t => t.Item1==this))) > 0)
 			{
-				Component attachedComponent = net.Components.First(c => net.connections[c].Contains(this));
+				Component attachedComponent = net.Components.First(c => net.connections[c].Any(t => t.Item1==this));
 				message += $"Attached Component: {attachedComponent.Name}\n";
 			}
 			message += $"X: {X}, Y: {Y}";
@@ -1267,8 +1359,8 @@ namespace FilterDesigner
 
 		public List<Component> Components { get; }
 		public List<Branchpoint> branchPoints;
-		public List<Line> wires;                        //Necessary? Maybe highlight net 
-		public Dictionary<Component, List<Branchpoint>> connections;
+		public List<Line> wires;                        //Necessary? Maybe highlight net
+		public Dictionary<Component, List<(Branchpoint, NetPort)>> connections;
 		public static Dictionary<Line, Net> wireDictionary = new Dictionary<Line, Net>();
 
 		public static bool wireAttached = false;        // Currently drawing a connection?
@@ -1298,18 +1390,49 @@ namespace FilterDesigner
 			Components = new List<Component>();
 			branchPoints = new List<Branchpoint>();
 			wires = new List<Line>();
-			connections = new Dictionary<Component, List<Branchpoint>>();
+			connections = new Dictionary<Component, List<(Branchpoint,NetPort)>>();
 			MainWindow.allNets.Add(this);
+		}
+
+		public static Net ImportNet(string str)
+		{
+			string[] net = str.Split(new[]{ "\n", "{", "}" }, StringSplitOptions.RemoveEmptyEntries);
+			if(!net[0].StartsWith("N;")) return null;
+			Net result = new Net(net[0].Substring(2));
+			for(int i = 1; i<net.Length; i++)
+			{
+				if(net[i].StartsWith("B;"))
+				{
+					Branchpoint bp = Branchpoint.ImportBranchpoint(net[i], result);
+				}
+				else if(net[i].StartsWith("W;"))
+				{
+					string[] lineData = net[i].Split(';');
+					Line line = result.NewWire
+					(
+						double.Parse(lineData[1]), 
+						double.Parse(lineData[2]), 
+						double.Parse(lineData[3]), 
+						double.Parse(lineData[4])
+					);
+					line.Visibility = Visibility.Visible;
+				}
+			}
+			return result;
 		}
 
 		public string ExportNet()
 		{
 			string result = "";
-			result += $"N,{Name}";
-			result += "\n{\n";
+			result += $"N;{Name}\n{{\n";	// {{ is { in $""
+			foreach(Line line in wires)
+			{
+				result += $"W;{line.X1};{line.Y1};{line.X2};{line.Y2}\n";
+			}
 			foreach(Branchpoint bp in branchPoints)
 			{
-				result += $"B,{bp.X},{bp.Y}\n";
+				result += bp.ExportBranchpoint();
+				result += "\n";
 			}
 			result += "}";
 			return result;
@@ -1448,10 +1571,10 @@ namespace FilterDesigner
 		{
 			if(connections.ContainsKey(component))
 			{
-				foreach(Branchpoint bp in connections[component])
+				foreach((Branchpoint, NetPort) bp in connections[component])
 				{
-					bp.X += deltaX;
-					bp.Y += deltaY;
+					bp.Item1.X += deltaX;
+					bp.Item1.Y += deltaY;
 				}
 			}
 		}
@@ -1528,9 +1651,9 @@ namespace FilterDesigner
 				newBranchPoint = new Branchpoint(newNet, point_x, point_y);
 				if(!newNet.connections.ContainsKey(newComponent))
 				{
-					newNet.connections.Add(newComponent, new List<Branchpoint>());
+					newNet.connections.Add(newComponent, new List<(Branchpoint,NetPort)>());
 				}
-				newNet.connections[newComponent].Add(newBranchPoint);
+				newNet.connections[newComponent].Add((newBranchPoint, newPort));
 			}
 			else
 			{
@@ -1540,9 +1663,9 @@ namespace FilterDesigner
 				newNet.Components.Add(newComponent);
 				if(!newNet.connections.ContainsKey(newComponent))
 				{
-					newNet.connections.Add(newComponent, new List<Branchpoint>());
+					newNet.connections.Add(newComponent, new List<(Branchpoint, NetPort)>());
 				}
-				newNet.connections[newComponent].Add(newBranchPoint);
+				newNet.connections[newComponent].Add((newBranchPoint,newPort));
 			}
 			newNet.Branchpoint_Connect(newBranchPoint);
 		}
@@ -1557,11 +1680,11 @@ namespace FilterDesigner
 			net.branchPoints.ForEach((b) => b.net = this);
 			branchPoints.AddRange(net.branchPoints);
 			Components.AddRange(net.Components);
-			foreach(KeyValuePair<Component, List<Branchpoint>> kvp in net.connections)
+			foreach(KeyValuePair<Component, List<(Branchpoint,NetPort)>> kvp in net.connections)
 			{
 				if(!connections.ContainsKey(kvp.Key))
 				{
-					connections.Add(kvp.Key, new List<Branchpoint>());
+					connections.Add(kvp.Key, new List<(Branchpoint,NetPort)>());
 				}
 				connections[kvp.Key].AddRange(kvp.Value);
 			}
@@ -1707,26 +1830,76 @@ namespace FilterDesigner
 		{
 			try
 			{
-				string[] data = str.Split(',');
+				Component result;
+				string[] data = str.Split(';');
 				switch(data[0][0])
 				{
 					case 'R':
 					{
-						return new Resistor(data[1], double.Parse(data[2]), double.Parse(data[3]));
+						result =  new Resistor
+						(
+							data[1],
+							double.Parse(data[2]),
+							double.Parse(data[3]),
+							double.Parse(data[4])
+						);
+						break;
 					}
 					case 'C':
 					{
-						return new Capacitor(data[1], double.Parse(data[2]), double.Parse(data[3]));
+						result = new Capacitor
+						(
+							data[1],
+							double.Parse(data[2]),
+							double.Parse(data[3]),
+							double.Parse(data[4])
+						);
+						break;
 					}
 					case 'L':
 					{
-						return new Inductor(data[1], double.Parse(data[2]), double.Parse(data[3]));
+						result = new Inductor
+						(
+							data[1],
+							double.Parse(data[2]),
+							double.Parse(data[3]),
+							double.Parse(data[4])
+						);
+						break;
 					}
 					default:
 					{
 						return null;
 					}
 				}
+
+				if(data[5] != "-1")
+				{
+					string[] netData = data[5].Split('.');
+					Net net = MainWindow.allNets[Int32.Parse(netData[0])];
+					result.NetA = net;
+					net.Components.Add(result);
+					if(!net.connections.ContainsKey(result))
+					{
+						net.connections[result] = new List<(Branchpoint, NetPort)>();
+					}
+					net.connections[result].Add((net.branchPoints[Int32.Parse(netData[1])], (NetPort)Int32.Parse(netData[2])));
+					result.HideNetPort(NetPort.A);
+				}
+				if(data[6] != "-1")
+				{
+					string[] netData = data[6].Split('.');
+					Net net = MainWindow.allNets[Int32.Parse(netData[0])];
+					result.NetB = net;
+					net.Components.Add(result);
+					if(!net.connections.ContainsKey(result))    // this is false if and only if NetA==NetB
+					{
+						net.connections[result] = new List<(Branchpoint, NetPort)>();
+					}
+					net.connections[result].Add((net.branchPoints[Int32.Parse(netData[1])], (NetPort)Int32.Parse(netData[2])));
+					result.HideNetPort(NetPort.B);
+				}
+				return result;
 			}
 			catch
 			{
@@ -1734,7 +1907,27 @@ namespace FilterDesigner
 			}
 		}
 
-		public abstract string ExportComponent();
+		public virtual string ExportComponent()
+		{
+			string result = "";
+			result += $";{MainWindow.allNets.IndexOf(NetA)}";
+			if(NetA != null)
+			{
+				foreach((Branchpoint, NetPort) bp in NetA.connections[this])
+				{
+					result += $".{NetA.branchPoints.IndexOf(bp.Item1)}.{(int)bp.Item2}";
+				}
+			}
+			result += $";{MainWindow.allNets.IndexOf(NetB)}";
+			if(NetB != null)
+			{
+				foreach((Branchpoint, NetPort) bp in NetB.connections[this])
+				{
+					result += $".{NetB.branchPoints.IndexOf(bp.Item1)}.{(int)bp.Item2}";
+				}
+			}
+			return result;
+		}
 
 		public abstract string GetValueStr();
 
@@ -1949,8 +2142,15 @@ namespace FilterDesigner
 			get { return ComponentMargins.Resistor_PortB_Y; }
 		}
 
-		public Resistor(string name) : base(name) { }
+		public Resistor(string name, double resistance = 0) : base(name)
+		{
+			Resistance = resistance;
+		}
 		public Resistor(string name, double x, double y) : base(name, x - 45, y - 10) { }
+		public Resistor(string name, double resistance, double x, double y) : this(name, x, y)
+		{
+			Resistance = resistance;
+		}
 		public Resistor(double x, double y) : this("", x, y)
 		{
 			int i = 1;
@@ -1964,10 +2164,14 @@ namespace FilterDesigner
 			}
 			Name = $"R{i}";
 		}
+		public Resistor(double resistance, double x, double y) : this(x, y)
+		{
+			Resistance = resistance;
+		}
 
 		public override string ExportComponent()
 		{	
-			return $"R,{Name},{X},{Y},{Resistance}";
+			return $"R;{Name};{Resistance};{X+45};{Y+10}" + base.ExportComponent();
 		}
 
 		public override string GetValueStr()
@@ -2070,8 +2274,15 @@ namespace FilterDesigner
 			get { return ComponentMargins.Inductor_PortB_Y; }
 		}
 
-		public Inductor(string name) : base(name) { }
+		public Inductor(string name, double inductance = 0) : base(name)
+		{
+			Inductance = inductance;
+		}
 		public Inductor(string name, double x, double y) : base(name, x - 45, y - 10) { }
+		public Inductor(string name, double inductance, double x, double y) : this(name, x, y)
+		{
+			Inductance = inductance;
+		}
 		public Inductor(double x, double y) : this("", x, y)
 		{
 			int i = 1;
@@ -2085,10 +2296,14 @@ namespace FilterDesigner
 			}
 			Name = $"L{i}";
 		}
+		public Inductor(double inductance, double x, double y) : this(x, y)
+		{
+			Inductance = inductance;
+		}
 
 		public override string ExportComponent()
 		{
-			return $"L,{Name},{X},{Y},{Inductance}";
+			return $"L;{Name};{Inductance};{X+45};{Y+10}" + base.ExportComponent();
 		}
 
 		public override string GetValueStr()
@@ -2186,15 +2401,20 @@ namespace FilterDesigner
 			get { return ComponentMargins.Capacitor_PortB_Y; }
 		}
 
-		public Capacitor(string name) : base(name)
+		public Capacitor(string name, double capacitance = 0) : base(name)
 		{
 			VisualGroup.Width = 50;
 			VisualGroup.Height = 40;
+			Capacitance = capacitance;
 		}
 		public Capacitor(string name, double x, double y) : base(name, x - 25, y - 20)
 		{
 			VisualGroup.Width = 50;
 			VisualGroup.Height = 40;
+		}
+		public Capacitor(string name, double capacitance, double x, double y) : this(name, x, y)
+		{
+			Capacitance = capacitance;
 		}
 		public Capacitor(double x, double y) : this("", x, y)
 		{
@@ -2209,10 +2429,14 @@ namespace FilterDesigner
 			}
 			Name = $"C{i}";
 		}
+		public Capacitor(double capacitance, double x, double y) : this(x, y)
+		{
+			Capacitance = capacitance;
+		}
 
 		public override string ExportComponent()
 		{
-			return $"C,{Name},{X},{Y},{Capacitance}";
+			return $"C;{Name};{Capacitance};{X+25};{Y+20}" + base.ExportComponent();
 		}
 
 		public override string GetValueStr()

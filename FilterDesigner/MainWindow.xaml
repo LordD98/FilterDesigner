@@ -9,7 +9,11 @@
 	<Window.CommandBindings>
 		<CommandBinding Command="Save" Executed = "Save_Executed"/>
 		<CommandBinding Command="Open" Executed = "Open_Executed"/>
+		<CommandBinding Command="{x:Static local:MainWindow.Clear}" Executed="Clear_Executed"/>
 	</Window.CommandBindings>
+	<Window.InputBindings>
+		<KeyBinding Key="Delete" Modifiers="Ctrl" Command="{x:Static local:MainWindow.Clear}"/>
+	</Window.InputBindings>
 	<Grid x:Name="mainGrid">
 		<Grid.RowDefinitions>
 			<RowDefinition Height="20"/>
@@ -26,7 +30,7 @@
 				<MenuItem x:Name="menuItemLoad" Header="Load" Command="Open"/>
 			</MenuItem>
 			<MenuItem Header="Edit">
-				<MenuItem Header="Clear" Click="MenuItem_Clear_Click"/>
+				<MenuItem x:Name="menuItemClear" Header="Clear" Command="{x:Static local:MainWindow.Clear}" InputGestureText="Ctrl+Del"/>
 			</MenuItem>
 		</Menu>
 		<Canvas x:Name="canvas" 
