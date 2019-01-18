@@ -10,15 +10,20 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace FilterDesigner
 {
 	// TODO:
-	// Rotate Components, Display Names
-	// Split Line, drag immediately
-	// Base move on absolute values of Component, not on relative movements
-	// Merge Branchpoints, Delete Lines and split nets
-	// GetSummands deep Search with recursion
+	// Rotate components, display names
+	// Add Dialog to change names & values
+	// Split line, drag immediately
+	// Base move() on absolute values of component, not on relative movements
+	// Merge branchpoints, delete lines and split nets
+	// GetSummands() deep search with recursion
+	// Simplify R1*R1 => R1^2
+	// Add output in LateX
+	// Add window to plot transfer function, change values on the fly
 
 	public partial class MainWindow : Window
 	{
@@ -35,7 +40,9 @@ namespace FilterDesigner
 		public MainWindow()
 		{
 			InitializeComponent();
+			Component.mainWindow = this;
 			Component.baseCanvas = canvas;
+			Net.mainWindow = this;
 			Net.baseCanvas = canvas;
 			Branchpoint.baseCanvas = canvas;
 			canvas.MouseLeftButtonDown += Net.Canvas_LeftMouseDown;
@@ -73,6 +80,21 @@ namespace FilterDesigner
 			//C1.Connect(GND, U2);
 
 			//DrawAll();
+
+			DispatcherTimer timer = new DispatcherTimer();
+			timer.Tick += Timer_Tick;
+			timer.Interval = TimeSpan.FromMilliseconds(100);
+			timer.Start();
+		}
+
+		void Timer_Tick(object x, object y)
+		{
+			if(Keyboard.FocusedElement != null && Keyboard.FocusedElement != tbxResult && !tbxResult.Text.EndsWith(Keyboard.FocusedElement?.ToString()))
+			{
+				if(tbxResult.Text != "")
+					tbxResult.Text += "\n";
+				tbxResult.Text += Keyboard.FocusedElement?.ToString();
+			}
 		}
 
 		public List<Path> FindPaths(Net A, Net B, List<Component> forbiddenComponents = null)
@@ -340,6 +362,7 @@ namespace FilterDesigner
 
 		public Expression GetTransferFunction(Net netA1, Net netA2, Net netB1, Net netB2)
 		{
+			if(netA1 == null || netA2 == null || netB1 == null || netB2 == null) return null;
 			List<Path> inputPaths = FindPaths(netA1, netA2);
 			List<Path> endPaths = inputPaths.Where(p => p.ContainsNet(netB1) && p.ContainsNet(netB2)).ToList();
 			List<Path> unusedPaths = inputPaths.Where(p => !p.Components.Any(c => endPaths.Any(p2 => p2.Components.Contains(c)))).ToList();
@@ -387,15 +410,32 @@ namespace FilterDesigner
 				Net upper = commonNets[upperNet];
 				Net lower = commonNets[lowerNet];
 
-				//if(upper == netA1 && lower == netA2) return result;
+				result = result * GetTransferFunction(upper, lower, netB1, netB2);
+				if(upper == netA1 && lower == netA2) return result;
 
-				return GetTransferFunction(upper, lower, netB1, netB2) * GetTransferFunction(netA1, netA2, upper, lower);
-				//result = result * GetTransferFunction(netA1, netA2, upper, lower);
-				//endPaths.AddRange(inputPaths.Where(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[upperNet])));
-				//commonNets = GetCommonNets(endPaths);
-				//upperNet = commonNets.IndexOf(upper);
-				//lowerNet = commonNets.IndexOf(lower);
+				endPaths.AddRange(inputPaths.Where(p => !endPaths.Contains(p) && p.ContainsNet(upper) && p.ContainsNet(lower)));
+				commonNets = GetCommonNets(endPaths);
+				netB1 = upper;
+				netB2 = lower;
+				upperNet = commonNets.IndexOf(upper);
+				lowerNet = commonNets.IndexOf(lower);
 			}
+
+			/* Recursive:
+			while(upperNet > 0 && !inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[upperNet])))
+			{// TODO: handle edge cases?
+				upperNet--;
+			}
+			while(lowerNet < commonNets.Count-1 && !inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[lowerNet])))
+			{// TODO: handle edge cases?
+				lowerNet++;
+			}
+			
+			Net upper = commonNets[upperNet];
+			Net lower = commonNets[lowerNet];
+			
+			return GetTransferFunction(upper, lower, netB1, netB2) * GetTransferFunction(netA1, netA2, upper, lower);
+			*/
 		}
 
 		public bool ContainsBridge(List<Path> listPaths)
@@ -415,15 +455,13 @@ namespace FilterDesigner
 				tbxResult.Text = "0";
 				return;
 			}
-			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
 
+			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
 			Expression exp = GetExpressionOfPaths(paths);
 			exp = exp.ToCommonDenominator();
 			exp = exp.ToStandardForm();
 			tbxResult.Text = exp.Evaluate();
-
-			//tbxResult.Text = ContainsBridge(paths).ToString();
-
+			
 			Expression transferFunction = GetTransferFunction
 			(
 				allNets.First(n => n.Name == "$0"),
@@ -431,7 +469,8 @@ namespace FilterDesigner
 				allNets.First(n => n.Name == "$2"),
 				allNets.First(n => n.Name == "$3")
 			);
-			MessageBox.Show(transferFunction.ToCommonDenominator().ToStandardForm().ToStandardForm().ToString(), "Result:");
+			if(transferFunction != null)
+				MessageBox.Show(transferFunction.ToCommonDenominator().ToStandardForm().Evaluate(), "Result:");
 		}
 
 		public void DrawAll()
@@ -507,6 +546,7 @@ namespace FilterDesigner
 		{
 			if(!Net.wireAttached)
 			{
+				e.Handled = true;
 				Point mouse = Mouse.GetPosition(canvas);
 				Component newComponent = null;
 				switch(ComponentToAdd)
@@ -523,7 +563,12 @@ namespace FilterDesigner
 					case ComponentType.None:
 						break;
 				}
-				newComponent?.Draw();
+				if(newComponent != null)
+				{
+					Keyboard.Focus(newComponent.VisualGroup);
+					newComponent.Draw();
+				}
+
 			}
 		}
 
@@ -1161,11 +1206,11 @@ namespace FilterDesigner
 				{
 					if(line.Value == LineEndPoint.Point1)
 					{
-						line.Key.X1 += value - x;
+						line.Key.X1 = value;
 					}
 					else
 					{
-						line.Key.X2 += value - x;
+						line.Key.X2 = value;
 					}
 				}
 				x = value;
@@ -1186,11 +1231,11 @@ namespace FilterDesigner
 				{
 					if(line.Value == LineEndPoint.Point1)
 					{
-						line.Key.Y1 += value - y;
+						line.Key.Y1 = value;
 					}
 					else
 					{
-						line.Key.Y2 += value - y;
+						line.Key.Y2 = value;
 					}
 				}
 				y = value;
@@ -1368,6 +1413,7 @@ namespace FilterDesigner
 		public static Net attachedNet;                  // Current net attached to line
 		public static Branchpoint attachedLineOrigin;   // Current line origin
 
+		public static MainWindow mainWindow;
 		public static Canvas baseCanvas;
 
 		public Net() : this("")
@@ -1565,16 +1611,14 @@ namespace FilterDesigner
 				wireAttached = true;
 			}
 		}
-
-		// TODO: Base move on absolute values of Component, not on relative movements
-		public void Move(Component component, double deltaX, double deltaY)
+		
+		public void Move(Component component)
 		{
 			if(connections.ContainsKey(component))
 			{
 				foreach((Branchpoint, NetPort) bp in connections[component])
 				{
-					bp.Item1.X += deltaX;
-					bp.Item1.Y += deltaY;
+					(bp.Item1.X, bp.Item1.Y) = component.GetPortCoordinates(bp.Item2);
 				}
 			}
 		}
@@ -1698,6 +1742,7 @@ namespace FilterDesigner
 
 		public static void Canvas_LeftMouseDown(object sender, MouseButtonEventArgs e)
 		{
+			Keyboard.ClearFocus();
 			if(wireAttached)
 			{
 				Point clickPoint = Mouse.GetPosition(baseCanvas);
@@ -1721,28 +1766,29 @@ namespace FilterDesigner
 	}
 
 	public enum NetPort { A, B };
-	public abstract class ComponentMargins
+	public enum ComponentRotation { H1, V1, H2, V2 };	// Horizontal & vertical orientations
+	public abstract class ComponentMargins	// Distance to center/origin of component
 	{
-		public static double Resistor_PortA_X = -5;
-		public static double Resistor_PortA_Y = +5;
-		public static double Resistor_PortB_X = +85;
-		public static double Resistor_PortB_Y = +5;
+		public static double Resistor_PortA_X = -44;
+		public static double Resistor_PortA_Y = +0;
+		public static double Resistor_PortB_X = +44;
+		public static double Resistor_PortB_Y = +0;
 
-		public static double Inductor_PortA_X = -5;
-		public static double Inductor_PortA_Y = +5;
-		public static double Inductor_PortB_X = +85;
-		public static double Inductor_PortB_Y = +5;
+		public static double Inductor_PortA_X = -3;
+		public static double Inductor_PortA_Y = +10;
+		public static double Inductor_PortB_X = +87;
+		public static double Inductor_PortB_Y = +10;
 
-		public static double Capacitor_PortA_X = -5;
-		public static double Capacitor_PortA_Y = +15;
-		public static double Capacitor_PortB_X = +45;
-		public static double Capacitor_PortB_Y = +15;
+		public static double Capacitor_PortA_X = -3;
+		public static double Capacitor_PortA_Y = +20;
+		public static double Capacitor_PortB_X = +47;
+		public static double Capacitor_PortB_Y = +20;
 	};
 
 	public abstract class Component
 	{
 		public string Name { get; set; }
-
+		
 		private double x;
 		public double X
 		{
@@ -1753,9 +1799,11 @@ namespace FilterDesigner
 			set
 			{
 				x = value;
-				Canvas.SetLeft(VisualGroup, x);
-				Canvas.SetLeft(PortA, x + PortA_MarginX);
-				Canvas.SetLeft(PortB, x + PortB_MarginX);
+				Canvas.SetLeft(VisualGroup, x - VisualGroup.Width / 2);
+				Canvas.SetLeft(PortA, x + PortA_MarginX - ConnectionPort.Radius);
+				Canvas.SetLeft(PortB, x + PortB_MarginX - ConnectionPort.Radius);
+				NetA?.Move(this);
+				NetB?.Move(this);
 			}
 		}
 
@@ -1769,14 +1817,17 @@ namespace FilterDesigner
 			set
 			{
 				y = value;
-				Canvas.SetTop(VisualGroup, y);
-				Canvas.SetTop(PortA, y + PortA_MarginY);
-				Canvas.SetTop(PortB, y + PortB_MarginY);
+				Canvas.SetTop(VisualGroup, y - VisualGroup.Height / 2);
+				Canvas.SetTop(PortA, y + PortA_MarginY - ConnectionPort.Radius);
+				Canvas.SetTop(PortB, y + PortB_MarginY - ConnectionPort.Radius);
+				NetA?.Move(this);
+				NetB?.Move(this);
 			}
 		}
 
 		public static double WireThickness = 3;
 		public static Brush LeadColor = Brushes.Black;
+		public ComponentRotation Rotation;
 
 		public abstract double PortA_MarginX { get; }   // Update for Rotation in Childs
 		public abstract double PortA_MarginY { get; }   //
@@ -1789,10 +1840,12 @@ namespace FilterDesigner
 		private static double mousedown_x = -1;
 		private static double mousedown_y = -1;
 
+		public static MainWindow mainWindow;
 		public static Canvas baseCanvas;
 		public static int baseCanvasMaxZIndex = 0;
 
-		public Canvas VisualGroup;
+		//public Canvas VisualGroup;
+		public BorderedCanvas VisualGroup;
 
 		public ConnectionPort PortA { get; protected set; }
 		public ConnectionPort PortB { get; protected set; }
@@ -1803,15 +1856,17 @@ namespace FilterDesigner
 		protected Component(string name)
 		{
 			Name = name;
-			VisualGroup = new Canvas
+			VisualGroup = new BorderedCanvas
 			{
-				Background = Brushes.Transparent,
-				Width = 90,
-				Height = 20,
+				Width = 94,
+				Height = 30,
+				Focusable = true,
+				IsEnabled = true,
 				SnapsToDevicePixels = true
 			};
 			VisualGroup.MouseLeftButtonDown += (x, y) => Symbol_MouseLeftDown(this, y);
 			VisualGroup.MouseRightButtonDown += (x, y) => Symbol_MouseRightDown(this, y);
+			VisualGroup.KeyDown += (x, y) => Symbol_KeyDown(this, y);
 			Panel.SetZIndex(VisualGroup, 0);
 			PortA = new ConnectionPort();
 			PortB = new ConnectionPort();
@@ -2006,9 +2061,11 @@ namespace FilterDesigner
 
 		protected static void Symbol_MouseLeftDown(Component sender, MouseButtonEventArgs e)
 		{
+			//Keyboard.Focus(sender.VisualGroup.grid);
+			sender.VisualGroup.KeyboardFocus();
 			e.Handled = true;
 			int oldZIndex = Panel.GetZIndex(sender.VisualGroup);
-			foreach(Canvas childCanvas in baseCanvas.Children.OfType<Canvas>())
+			foreach(BorderedCanvas childCanvas in baseCanvas.Children.OfType<BorderedCanvas>())
 			{
 				int currentZIndex = Panel.GetZIndex(childCanvas);
 				if(currentZIndex > oldZIndex)
@@ -2046,13 +2103,7 @@ namespace FilterDesigner
 				double mouseStartDiffY = newMousePos.Y - mousedown_y;
 				double mouseStepDeltaX = moveStartX + mouseStartDiffX - movedComponent.X;
 				double mouseStepDeltaY = moveStartY + mouseStartDiffY - movedComponent.Y;
-
-				movedComponent.NetA?.Move(movedComponent, mouseStepDeltaX, mouseStepDeltaY);
-				if(movedComponent.NetB != movedComponent.NetA)
-				{
-					movedComponent.NetB?.Move(movedComponent, mouseStepDeltaX, mouseStepDeltaY);
-				}
-
+				
 				movedComponent.X = moveStartX + mouseStartDiffX;        // Move component
 				movedComponent.Y = moveStartY + mouseStartDiffY;        //
 			}
@@ -2066,6 +2117,49 @@ namespace FilterDesigner
 			message += $"NetB: {sender.NetB?.Name ?? "null"}\n";
 			message += $"X: {sender.X}, Y: {sender.Y}";
 			MessageBox.Show(message, "Component");
+		}
+
+		public static void Symbol_KeyDown(Component sender, KeyEventArgs e)
+		{
+			if(e.Key == Key.R && e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Control))
+			{
+				if(e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Shift))
+				{
+					sender.RotateRight();
+				}
+				else
+				{
+					sender.RotateLeft();
+				}
+				//sender.NetA?.Move(movedComponent, mouseStepDeltaX, mouseStepDeltaY);
+				//if(movedComponent.NetB != movedComponent.NetA)
+				//{
+				//	movedComponent.NetB?.Move(movedComponent, mouseStepDeltaX, mouseStepDeltaY);
+				//}
+				
+				//if(sender.VisualGroup.Background == Brushes.Transparent)
+				//	sender.VisualGroup.Background = Brushes.Blue;
+				//else
+				//	sender.VisualGroup.Background = Brushes.Transparent;
+				//Keyboard.Focus(sender.VisualGroup);
+				//MoveFocus();
+			}
+		}
+
+		public abstract void DrawRotation();
+		public virtual void RotateLeft()
+		{
+			Rotation = (ComponentRotation)(((int)Rotation + 1) % 4);
+			DrawRotation();
+			X = x;
+			Y = y;
+		}
+		public virtual void RotateRight()
+		{
+			Rotation = (ComponentRotation)(((int)Rotation - 1) % 4);
+			DrawRotation();
+			X = x;
+			Y = y;
 		}
 
 		public abstract (double X, double Y) GetPortCoordinates(NetPort port);
@@ -2127,26 +2221,89 @@ namespace FilterDesigner
 		// Update for Rotation
 		public override double PortA_MarginX
 		{
-			get { return ComponentMargins.Resistor_PortA_X; }
+			get
+			{
+				switch(Rotation)
+				{
+					case ComponentRotation.H1:
+						return ComponentMargins.Resistor_PortA_X;
+					case ComponentRotation.H2:
+						return ComponentMargins.Resistor_PortB_X;
+					case ComponentRotation.V1:
+						return ComponentMargins.Resistor_PortA_Y;
+					case ComponentRotation.V2:
+						return ComponentMargins.Resistor_PortB_Y;
+					default:
+						return ComponentMargins.Resistor_PortA_X;
+				}
+			}
 		}
 		public override double PortA_MarginY
 		{
-			get { return ComponentMargins.Resistor_PortA_Y; }
+			get
+			{
+				switch(Rotation)
+				{
+					case ComponentRotation.H1:
+						return ComponentMargins.Resistor_PortA_Y;
+					case ComponentRotation.H2:
+						return ComponentMargins.Resistor_PortB_Y;
+					case ComponentRotation.V1:
+						return ComponentMargins.Resistor_PortA_X;
+					case ComponentRotation.V2:
+						return ComponentMargins.Resistor_PortB_X;
+					default:
+						return ComponentMargins.Resistor_PortA_Y;
+				}
+			}
 		}
 		public override double PortB_MarginX
 		{
-			get { return ComponentMargins.Resistor_PortB_X; }
+			get
+			{
+				switch(Rotation)
+				{
+					case ComponentRotation.H1:
+						return ComponentMargins.Resistor_PortB_X;
+					case ComponentRotation.H2:
+						return ComponentMargins.Resistor_PortA_X;
+					case ComponentRotation.V1:
+						return ComponentMargins.Resistor_PortB_Y;
+					case ComponentRotation.V2:
+						return ComponentMargins.Resistor_PortA_Y;
+					default:
+						return ComponentMargins.Resistor_PortB_X;
+				}
+			}
 		}
 		public override double PortB_MarginY
 		{
-			get { return ComponentMargins.Resistor_PortB_Y; }
+			get
+			{
+				switch(Rotation)
+				{
+					case ComponentRotation.H1:
+						return ComponentMargins.Resistor_PortB_Y;
+					case ComponentRotation.H2:
+						return ComponentMargins.Resistor_PortA_Y;
+					case ComponentRotation.V1:
+						return ComponentMargins.Resistor_PortB_X;
+					case ComponentRotation.V2:
+						return ComponentMargins.Resistor_PortA_X;
+					default:
+						return ComponentMargins.Resistor_PortB_Y;
+				}
+			}
 		}
+
+		private Rectangle symbol;
+		private Line leads;
 
 		public Resistor(string name, double resistance = 0) : base(name)
 		{
 			Resistance = resistance;
 		}
-		public Resistor(string name, double x, double y) : base(name, x - 45, y - 10) { }
+		public Resistor(string name, double x, double y) : base(name, x, y) { }
 		public Resistor(string name, double resistance, double x, double y) : this(name, x, y)
 		{
 			Resistance = resistance;
@@ -2181,7 +2338,7 @@ namespace FilterDesigner
 
 		public override void Draw()
 		{
-			Rectangle symbol = new Rectangle
+			symbol = new Rectangle
 			{
 				Width = 50,
 				Height = 20,
@@ -2190,7 +2347,7 @@ namespace FilterDesigner
 				StrokeThickness = 2,
 				SnapsToDevicePixels = true
 			};
-			Line leads = new Line
+			leads = new Line
 			{
 				X1 = 0,
 				X2 = 90,
@@ -2200,17 +2357,19 @@ namespace FilterDesigner
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
+			RenderOptions.SetEdgeMode(symbol, EdgeMode.Aliased);
+			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);
 
-			Canvas.SetLeft(VisualGroup, X);
-			Canvas.SetTop(VisualGroup, Y);
-			Canvas.SetLeft(symbol, 20);
-			Canvas.SetTop(symbol, 0);
-			Canvas.SetLeft(leads, 0);
-			Canvas.SetTop(leads, 10);
-			Canvas.SetLeft(PortA, X + ComponentMargins.Resistor_PortA_X);
-			Canvas.SetTop(PortA, Y + ComponentMargins.Resistor_PortA_Y);
-			Canvas.SetLeft(PortB, X + ComponentMargins.Resistor_PortB_X);
-			Canvas.SetTop(PortB, Y + ComponentMargins.Resistor_PortB_Y);
+			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
+			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
+			Canvas.SetLeft(symbol, 22);
+			Canvas.SetTop(symbol, 5);
+			Canvas.SetLeft(leads, 2);
+			Canvas.SetTop(leads, 15);
+			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
+			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
+			Canvas.SetLeft(PortB, X + PortB_MarginX - ConnectionPort.Radius);
+			Canvas.SetTop(PortB, Y + PortB_MarginY - ConnectionPort.Radius);
 			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(symbol);
 			baseCanvas.Children.Add(PortA);
@@ -2220,18 +2379,57 @@ namespace FilterDesigner
 			UpdateBaseCanvas();
 		}
 
-		public override (double X, double Y) GetPortCoordinates(NetPort port)   // Relative to basCanvas
+		public override void DrawRotation()
+		{
+			if((int)Rotation % 2 == 0)	// Horizontal
+			{
+				VisualGroup.Width = 94;
+				VisualGroup.Height = 30;
+				symbol.Width = 50;
+				symbol.Height = 20;
+				leads.X1 = 0;
+				leads.X2 = 90;
+				leads.Y1 = 0;
+				leads.Y2 = 0;
+				Canvas.SetLeft(symbol, 22);
+				Canvas.SetTop(symbol, 5);
+				Canvas.SetLeft(leads, 2);
+				Canvas.SetTop(leads, 15);
+				
+			}
+			else
+			{
+				VisualGroup.Width = 30;
+				VisualGroup.Height = 94;
+				symbol.Width = 20;
+				symbol.Height = 50;
+				leads.X1 = 0;
+				leads.X2 = 0;
+				leads.Y1 = 0;
+				leads.Y2 = 90;
+				Canvas.SetLeft(symbol, 5);
+				Canvas.SetTop(symbol, 22);
+				Canvas.SetLeft(leads, 15);
+				Canvas.SetTop(leads, 2);
+			}
+			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
+			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
+			Canvas.SetLeft(PortB, X + PortB_MarginX - ConnectionPort.Radius);
+			Canvas.SetTop(PortB, Y + PortB_MarginY - ConnectionPort.Radius);
+		}
+
+		public override (double X, double Y) GetPortCoordinates(NetPort port)   // Relative to baseCanvas
 		{
 			double x, y;
 			if(port == NetPort.A)
 			{
-				x = X;
-				y = Y + 10;
+				x = X + PortA_MarginX;
+				y = Y + PortA_MarginY;
 			}
 			else
 			{
-				x = X + 90;
-				y = Y + 10;
+				x = X + PortB_MarginX;
+				y = Y + PortB_MarginY;
 			}
 			return (x, y);
 		}
@@ -2278,7 +2476,7 @@ namespace FilterDesigner
 		{
 			Inductance = inductance;
 		}
-		public Inductor(string name, double x, double y) : base(name, x - 45, y - 10) { }
+		public Inductor(string name, double x, double y) : base(name, x, y) { }
 		public Inductor(string name, double inductance, double x, double y) : this(name, x, y)
 		{
 			Inductance = inductance;
@@ -2332,13 +2530,15 @@ namespace FilterDesigner
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
+			RenderOptions.SetEdgeMode(symbol, EdgeMode.Aliased);
+			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);
 
-			Canvas.SetLeft(VisualGroup, X);
-			Canvas.SetTop(VisualGroup, Y);
-			Canvas.SetLeft(symbol, 20);
-			Canvas.SetTop(symbol, 0);
-			Canvas.SetLeft(leads, 0);
-			Canvas.SetTop(leads, 10);
+			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
+			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
+			Canvas.SetLeft(symbol, 22);
+			Canvas.SetTop(symbol, 5);
+			Canvas.SetLeft(leads, 2);
+			Canvas.SetTop(leads, 15);
 			Canvas.SetLeft(PortA, X + ComponentMargins.Inductor_PortA_X);
 			Canvas.SetTop(PortA, Y + ComponentMargins.Inductor_PortA_Y);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Inductor_PortB_X);
@@ -2352,18 +2552,23 @@ namespace FilterDesigner
 			UpdateBaseCanvas();
 		}
 
-		public override (double X, double Y) GetPortCoordinates(NetPort port)    // Relative to basCanvas
+		public override void DrawRotation()
+		{
+			throw new NotImplementedException();
+		}
+
+		public override (double X, double Y) GetPortCoordinates(NetPort port)    // Relative to baseCanvas
 		{
 			double x, y;
 			if(port == NetPort.A)
 			{
-				x = X;
-				y = Y + 10;
+				x = X + 2;
+				y = Y + 15;
 			}
 			else
 			{
-				x = X + 90;
-				y = Y + 10;
+				x = X + 92;
+				y = Y + 15;
 			}
 			return (x, y);
 		}
@@ -2403,14 +2608,16 @@ namespace FilterDesigner
 
 		public Capacitor(string name, double capacitance = 0) : base(name)
 		{
-			VisualGroup.Width = 50;
-			VisualGroup.Height = 40;
+			VisualGroup.Width = 54;
+			VisualGroup.Height = 50;
 			Capacitance = capacitance;
 		}
-		public Capacitor(string name, double x, double y) : base(name, x - 25, y - 20)
+		public Capacitor(string name, double x, double y) : base(name, x, y)
 		{
-			VisualGroup.Width = 50;
-			VisualGroup.Height = 40;
+			VisualGroup.Width = 54;
+			VisualGroup.Height = 50;
+			X = x;
+			Y = y;
 		}
 		public Capacitor(string name, double capacitance, double x, double y) : this(name, x, y)
 		{
@@ -2471,23 +2678,26 @@ namespace FilterDesigner
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
+			RenderOptions.SetEdgeMode(border, EdgeMode.Aliased);
+			RenderOptions.SetEdgeMode(capContent, EdgeMode.Aliased);
+			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);		
 
 			border.Child = capContent;
+			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
+			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
+			Canvas.SetLeft(border, 22);
+			Canvas.SetTop(border, 5);
+			Canvas.SetLeft(leads, 2);
+			Canvas.SetTop(leads, 25);
+			Canvas.SetLeft(PortA, X + ComponentMargins.Capacitor_PortA_X);
+			Canvas.SetTop(PortA, Y + ComponentMargins.Capacitor_PortA_Y);
+			Canvas.SetLeft(PortB, X + ComponentMargins.Capacitor_PortB_X);
+			Canvas.SetTop(PortB, Y + ComponentMargins.Capacitor_PortB_Y);
 			Panel.SetZIndex(border, 1);
 			Panel.SetZIndex(leads, 0);
 			Panel.SetZIndex(capContent, 2);
 			Panel.SetZIndex(PortA, 3);
 			Panel.SetZIndex(PortB, 4);
-			Canvas.SetLeft(VisualGroup, X);
-			Canvas.SetTop(VisualGroup, Y);
-			Canvas.SetLeft(border, 20);
-			Canvas.SetTop(border, 0);
-			Canvas.SetLeft(leads, 0);
-			Canvas.SetTop(leads, 20);
-			Canvas.SetLeft(PortA, X + ComponentMargins.Capacitor_PortA_X);
-			Canvas.SetTop(PortA, Y + ComponentMargins.Capacitor_PortA_Y);
-			Canvas.SetLeft(PortB, X + ComponentMargins.Capacitor_PortB_X);
-			Canvas.SetTop(PortB, Y + ComponentMargins.Capacitor_PortB_Y);
 			VisualGroup.Children.Add(border);
 			VisualGroup.Children.Add(leads);
 			baseCanvas.Children.Add(PortA);
@@ -2497,18 +2707,23 @@ namespace FilterDesigner
 			UpdateBaseCanvas();
 		}
 
-		public override (double X, double Y) GetPortCoordinates(NetPort port)    // Relative to basCanvas
+		public override void DrawRotation()
+		{
+			throw new NotImplementedException();
+		}
+
+		public override (double X, double Y) GetPortCoordinates(NetPort port)    // Relative to baseCanvas
 		{
 			double x, y;
 			if(port == NetPort.A)
 			{
-				x = X;
-				y = Y + 20;
+				x = X + 2;
+				y = Y + 25;
 			}
 			else
 			{
-				x = X + 50;
-				y = Y + 20;
+				x = X + 52;
+				y = Y + 25;
 			}
 			return (x, y);
 		}

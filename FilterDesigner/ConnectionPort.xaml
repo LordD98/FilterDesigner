@@ -8,9 +8,7 @@
              d:DesignHeight="20" d:DesignWidth="20" Width="10" Height="10">
 	<Ellipse 
 		x:Name="Ellipse" 
-		SnapsToDevicePixels="True" 
-		Width="10" 
-		Height="10" 
+		SnapsToDevicePixels="True"
 		Stroke="#00000000" 
 		Fill="#00000000" 
 		MouseEnter="Ellipse_Enter" 

@@ -24,7 +24,7 @@
 			<ColumnDefinition Width="10"/>
 			<ColumnDefinition Width="100"/>
 		</Grid.ColumnDefinitions>
-		<Menu x:Name="mainMenu" Margin="0">
+		<Menu x:Name="mainMenu" Margin="0" Grid.ColumnSpan="3">
 			<MenuItem Header="File">
 				<MenuItem x:Name="menuItemSave" Header="Save" Command="Save"/>
 				<MenuItem x:Name="menuItemLoad" Header="Load" Command="Open"/>
@@ -34,10 +34,11 @@
 			</MenuItem>
 		</Menu>
 		<Canvas x:Name="canvas" 
-				Margin="5,5,5,4.667" 
+				Margin="5,5,5,4.667"
 				SnapsToDevicePixels="True" 
 				ClipToBounds="True" 
-				Background="#FFFAFAFA" Grid.Row="1"/>
+				Background="#FFFAFAFA" Grid.Row="1">
+		</Canvas>
 		<Grid x:Name="Toolbox" Grid.Column="1" Margin="0,5,5,0" Grid.ColumnSpan="2" Grid.Row="1">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="10"/>
@@ -55,7 +56,10 @@
 			<Rectangle x:Name="RectResistor" Fill="Transparent" Margin="0,5" Stroke="#00000000" StrokeThickness="0" Grid.Row="0" SnapsToDevicePixels="True"/>
 			<Rectangle x:Name="RectCapacitor" Fill="Transparent" Margin="0,5" Stroke="#00000000" StrokeThickness="0" Grid.Row="1" SnapsToDevicePixels="True"/>
 			<Rectangle x:Name="RectInductor" Fill="Transparent" Margin="0,5" Stroke="#00000000" StrokeThickness="0" Grid.Row="2" SnapsToDevicePixels="True"/>
-			<Button x:Name="btnResistor" Click="BtnResistor_Click" Grid.Column="1" Margin="5,0,0,0">
+			<Button x:Name="btnResistor" Grid.Column="1" Grid.Row="0" Click="BtnResistor_Click" Margin="5,0,0,0">
+				<RenderOptions.EdgeMode>
+					<EdgeMode>Aliased</EdgeMode>
+				</RenderOptions.EdgeMode>
 				<Canvas>
 					<Rectangle
 						Canvas.Left="-25"
@@ -80,6 +84,9 @@
 				</Canvas>
 			</Button>
 			<Button x:Name="btnCapacitor" Grid.Column="1" Grid.Row="1" Click="BtnCapacitor_Click" Margin="5,0,0,0">
+				<RenderOptions.EdgeMode>
+					<EdgeMode>Aliased</EdgeMode>
+				</RenderOptions.EdgeMode>
 				<Canvas>
 					<Border
 						Canvas.Left="-5"
@@ -105,6 +112,9 @@
 				</Canvas>
 			</Button>
 			<Button x:Name="btnInductor" Grid.Column="1" Grid.Row="2" Click="BtnInductor_Click" Margin="5,0,0,0">
+				<RenderOptions.EdgeMode>
+					<EdgeMode>Aliased</EdgeMode>
+				</RenderOptions.EdgeMode>
 				<Canvas>
 					<Rectangle
 						Canvas.Left="-25"

@@ -12,6 +12,7 @@ namespace FilterDesigner
 	public partial class ConnectionPort : UserControl
 	{
 		public static Brush SelectionColorBrush = new SolidColorBrush(Color.FromArgb(0xFF,0xFF,0x20,0x20));
+		public const double Radius = 5;
 
 		public ConnectionPort()
 		{

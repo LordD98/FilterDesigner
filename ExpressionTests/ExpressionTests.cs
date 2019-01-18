@@ -159,7 +159,6 @@ namespace FilterDesigner.UnitTests
 			Assert.IsFalse(result1);
 			Assert.IsFalse(result2);
 		}
-
 	}
 
 	[TestClass]
@@ -197,11 +196,64 @@ namespace FilterDesigner.UnitTests
 			Component C2 = new Capacitor("C2");
 			Expression s = Expression.S;
 			Expression exp = 1 + s + s*4*s*s + 3*s + s*1/C2.GetExpression()*s;
-			string expected = "s^3*(4+C2)+s*4+1";
+			string expected = "s^3*(4+C2)+4*s+1";
 
 			exp = exp.ToStandardForm();
 
 			Assert.AreEqual(exp.Evaluate(), expected);
+		}
+
+		[TestMethod]
+		public void ToCommonDenDifferentDens_EvaluateEqual()
+		{
+			Component_Order oldCompOrder = Expression.ComponentOrder;
+			Product_Order oldProdOrder = Expression.ProductOrder;
+			Sum_Order oldSumOrder = Expression.SumOrder;
+			Expression s = Expression.S;
+			ComponentExpression R = new ComponentExpression("R");
+			ComponentExpression L = new ComponentExpression("L");
+			ComponentExpression C = new ComponentExpression("C");
+			Expression exp1 = 1 / (s * C) + 1 / (1 / R + 1 / (s * L));
+
+			Expression.SumOrder = Sum_Order.S2_S;
+			Expression.ProductOrder = Product_Order._2SC;
+			Expression.ComponentOrder = Component_Order.RCL;
+			Expression exp2 = exp1.ToCommonDenominator().ToStandardForm();
+			Expression.ComponentOrder = Component_Order.RLC;
+			Expression exp3 = exp2.ToStandardForm();
+			Expression.SumOrder = Sum_Order.S_S2;
+			Expression.ComponentOrder = Component_Order.RCL;
+			Expression exp4 = exp2.ToStandardForm();
+			Expression.ComponentOrder = Component_Order.RLC;
+			Expression exp5 = exp2.ToStandardForm();
+			string expected1 = "(s^2*R*C*L+s*L+R)/(s^2*C*L+s*R*C)";
+			string expected2 = "(s^2*R*L*C+s*L+R)/(s^2*L*C+s*R*C)";
+			string expected3 = "(R+s*L+s^2*R*C*L)/(s*R*C+s^2*C*L)";
+			string expected4 = "(R+s*L+s^2*R*L*C)/(s*R*C+s^2*L*C)";
+
+			Assert.AreEqual(exp2.Evaluate(), expected1);
+			Assert.AreEqual(exp3.Evaluate(), expected2);
+			Assert.AreEqual(exp4.Evaluate(), expected3);
+			Assert.AreEqual(exp5.Evaluate(), expected4);
+			Expression.ComponentOrder = oldCompOrder;
+			Expression.ProductOrder = oldProdOrder;
+			Expression.SumOrder = oldSumOrder;
+		}
+
+		[TestMethod]
+		public void Const_AreEqual()
+		{
+			Expression exp1 = (1 + 1 / new ConstExpression(3)) / (1 * (3 * (4 * new ConstExpression(7))));
+			Expression exp2 = new ConstExpression(3) * (1 * (3 * (4 * new ConstExpression(7))));
+			Expression exp3 = 1 + 1 / new ConstExpression(3) + 1 + 6 * (3 * (4 * new ConstExpression(7)));
+
+			double result1 = (exp1.ToStandardForm() as ConstExpression).Value;
+			double result2 = (exp2.ToStandardForm() as ConstExpression).Value;
+			double result3 = (exp3.ToStandardForm() as ConstExpression).Value;
+
+			Assert.AreEqual(result1, 1.0 / 63.0);
+			Assert.AreEqual(result2, 252);
+			Assert.AreEqual(result3, 7.0 / 3.0 + 504);
 		}
 	}
 
@@ -219,7 +271,7 @@ namespace FilterDesigner.UnitTests
 			string result1 = exp1.ToStandardForm().Evaluate();
 			string result2 = exp3.Evaluate();
 
-			Assert.AreEqual(result1, "s^2+s*2+1");
+			Assert.AreEqual(result1, "s^2+2*s+1");
 			Assert.AreEqual(result2, "s^2+s+s+1");
 		}
 
@@ -227,8 +279,8 @@ namespace FilterDesigner.UnitTests
 		public void Contains_ReturnsTrue()
 		{
 			Expression s = Expression.S;
-			Product p1 = s * s * 4 * s * s;
-			Product p2 = (s + 1) * (s + s) * 3 * s;
+			Product p1 = s * s * 4 * s * s as Product;
+			Product p2 = (s + 1) * (s + s) * 3 * s as Product;
 
 			bool result1 = p1.Contains(s * s);
 			bool result2 = p1.Contains(s * s * s * s);
@@ -274,27 +326,11 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
-		public void ToStandardForm_Const_AreEqual()
-		{
-			Expression exp1 = (1 + 1 / new ConstExpression(3)) / (1 * (3 * (4 * new ConstExpression(7))));
-			Expression exp2 = new ConstExpression(3) * (1 * (3 * (4 * new ConstExpression(7))));
-			Expression exp3 = 1 + 1 / new ConstExpression(3) + 1 + 6 * (3 * (4 * new ConstExpression(7)));
-
-			double result1 = (exp1.ToStandardForm() as ConstExpression).Value;
-			double result2 = (exp2.ToStandardForm() as ConstExpression).Value;
-			double result3 = (exp3.ToStandardForm() as ConstExpression).Value;
-
-			Assert.AreEqual(result1, 1.0 / 63.0);
-			Assert.AreEqual(result2, 252);
-			Assert.AreEqual(result3, 7.0/3.0 + 504);
-		}
-
-		[TestMethod]
 		public void FactorOut_Product_AreEqual()
 		{
 			Expression s = Expression.S;
-			Product p1 = s * s * 4 * s * s;
-			Product p2 = 2 * s * 5 * s * s;
+			Product p1 = s * s * 4 * s * s as Product;
+			Product p2 = 2 * s * 5 * s * s as Product;
 			Expression expected1 = 4 * s;
 			Expression expected2 = 10;
 
@@ -319,6 +355,64 @@ namespace FilterDesigner.UnitTests
 
 			Assert.AreEqual(expected1, result1);
 			Assert.AreEqual(expected2, result2);
+		}
+
+		[TestMethod]
+		public void ToCommonDenominator_Product_EvaluateEqual()
+		{
+			Expression s = Expression.S;
+			Expression exp1 = ((s + 1) * (s + 3)) / (s * s + 2);
+			Expression exp2 = (s + 1) * ((s + 3) / (s * s + 2));
+
+			Expression exp3 = exp2.ToCommonDenominator();
+
+			string result = "((s+1)(s+3))/(s*s+2)";
+
+			Assert.IsTrue(exp1.Equals(exp2));
+			Assert.IsTrue(exp2.Equals(exp1));
+
+			Assert.AreEqual(exp1.Evaluate(), result);
+			Assert.AreEqual(exp3.Evaluate(), result);
+		}
+
+		[TestMethod]
+		public void Multiply_ProductDivision_EvaluateEqual()
+		{
+			Expression s = Expression.S;
+			Expression exp1 = (s + 1)*((2) / (s + 3));
+			Expression exp2 = (3 + s);
+
+			Expression exp3 = exp1 * exp2;
+			string result = "(s+1)*2";
+
+			Assert.AreEqual(exp3.Evaluate(), result);
+		}
+
+		[TestMethod]
+		public void ComponentCompare_Test()
+		{
+			Component_Order oldOrder = Expression.ComponentOrder;
+			Expression R1 = new ComponentExpression(new Resistor("R1"));
+			Expression R2 = new ComponentExpression(new Resistor("R2"));
+			Expression C1 = new ComponentExpression(new Capacitor("C1"));
+			Expression C2 = new ComponentExpression(new Capacitor("C2"));
+			Expression L1 = new ComponentExpression(new Inductor("L1"));
+			Expression L2 = new ComponentExpression(new Inductor("L2"));
+
+			Assert.AreEqual(Expression.Compare(R1, R2), 0);
+			Assert.AreEqual(Expression.Compare(C1, C2), 0);
+			Assert.AreEqual(Expression.Compare(L1, L2), 0);
+
+			Expression.ComponentOrder = Component_Order.RCL;
+			Assert.AreEqual(Expression.Compare(R1, L1), -1);
+			Assert.AreEqual(Expression.Compare(R1, C1), -1);
+			Assert.AreEqual(Expression.Compare(L1, C1), 1);
+			Expression.ComponentOrder = Component_Order.RLC;
+			Assert.AreEqual(Expression.Compare(R1, L1), -1);
+			Assert.AreEqual(Expression.Compare(R1, C1), -1);
+			Assert.AreEqual(Expression.Compare(L1, C1), -1);
+
+			Expression.ComponentOrder = oldOrder;
 		}
 	}
 }
