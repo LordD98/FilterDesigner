@@ -34,22 +34,8 @@ namespace FilterDesigner
         {
             InitializeComponent();
         }
-
-		private void Canvas_Click(object sender, RoutedEventArgs e)
-		{
-			//e.Handled = true;
-			//Keyboard.Focus(grid);
-		}
-
-		private void Canvas_KeyDown(object sender, KeyEventArgs e)
-		{
-			if(e.Key == Key.R && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-			{
-				//Debugger.Break();
-			}
-		}
-
-		internal void KeyboardFocus()
+		
+		public void KeyboardFocus()
 		{
 			Keyboard.Focus(grid);
 		}

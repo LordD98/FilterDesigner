@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FilterDesigner"
         mc:Ignorable="d"
-        Title="Filter Designer" Height="450" Width="800" Icon="Symbol.png">
+        Title="Filter Designer" Height="500" Width="900" Icon="Symbol.png" Focusable="True">
 	<Window.CommandBindings>
 		<CommandBinding Command="Save" Executed = "Save_Executed"/>
 		<CommandBinding Command="Open" Executed = "Open_Executed"/>
@@ -22,7 +22,7 @@
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition/>
 			<ColumnDefinition Width="10"/>
-			<ColumnDefinition Width="100"/>
+			<ColumnDefinition Width="150"/>
 		</Grid.ColumnDefinitions>
 		<Menu x:Name="mainMenu" Margin="0" Grid.ColumnSpan="3">
 			<MenuItem Header="File">
@@ -43,6 +43,7 @@
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="10"/>
 				<ColumnDefinition Width="95"/>
+				<ColumnDefinition Width="50"/>
 			</Grid.ColumnDefinitions>
 			<Grid.RowDefinitions>
 				<RowDefinition/>
@@ -138,10 +139,15 @@
 						SnapsToDevicePixels = "true" Width="80"/>
 				</Canvas>
 			</Button>
-			<TextBox x:Name="tbxResult" Grid.Column="1" Margin="5,5,0,0" Grid.Row="3" TextWrapping="Wrap" SnapsToDevicePixels="True" Focusable="True" IsReadOnly="True"/>
-			<ComboBox x:Name="cbxNet1" Margin="5,5,0,5" Grid.Column="1" Grid.Row="4"/>
-			<ComboBox x:Name="cbxNet2" Margin="5,5,0,5" Grid.Column="1" Grid.Row="5"/>
-			<Button x:Name="btnTest" Content="Get Impedance" Margin="5,5,0,5" Click="BtnTest_Click" Grid.Column="1" Grid.Row="6"/>
+			<StackPanel Grid.Column="2" Grid.Row="0" Grid.RowSpan="3">
+				<Button Content="Rotate&#xa;Left"/>
+				<Button Content="Rotate&#xa;Right"/>
+				
+			</StackPanel>
+			<TextBox x:Name="tbxResult" Grid.Column="1" Margin="5,5,0,0" Grid.Row="3" Grid.ColumnSpan="2" TextWrapping="Wrap" SnapsToDevicePixels="True" Focusable="True" IsReadOnly="True"/>
+			<ComboBox x:Name="cbxNet1" Margin="5,5,0,5" Grid.Column="1" Grid.Row="4" Grid.ColumnSpan="2"/>
+			<ComboBox x:Name="cbxNet2" Margin="5,5,0,5" Grid.Column="1" Grid.Row="5" Grid.ColumnSpan="2"/>
+			<Button x:Name="btnTest" Content="Get Impedance" Margin="5,5,0,5" Click="BtnTest_Click" Grid.Column="1" Grid.Row="6" Grid.ColumnSpan="2"/>
 		</Grid>
 	</Grid>
 </Window>
