@@ -15,11 +15,10 @@ using System.Windows.Threading;
 namespace FilterDesigner
 {
 	// TODO:
-	// Place rotated components, display names
 	// Add Dialog to change names & values
-	// Split line, drag immediately
+	// Split line => drag immediately
 	// Merge branchpoints, delete lines and split nets
-	// GetSummands() deep search with recursion
+	// GetSummands() deep search with recursion?
 	// Simplify R1*R1 => R1^2
 	// Add output in LateX
 	// Add window to plot transfer function, change values on the fly
@@ -33,6 +32,7 @@ namespace FilterDesigner
 
 		public enum ComponentType { None, Resistor, Capacitor, Inductor };
 		public static ComponentType ComponentToAdd = ComponentType.None;
+		public static ComponentRotation AddComponentRotation = ComponentRotation.H1;
 
 		public static RoutedCommand Clear = new RoutedUICommand("Clear", "Clear", typeof(MainWindow));
 
@@ -543,6 +543,18 @@ namespace FilterDesigner
 			}
 		}
 
+		private void BtnRotateLeft_Click(object sender, RoutedEventArgs e)
+		{
+			AddComponentRotation = (ComponentRotation)(((int)AddComponentRotation + 3) % 4);
+			ComponentRotationIndicatorTransform.Angle = (ComponentRotationIndicatorTransform.Angle + 270) % 360;
+		}
+
+		private void BtnRotateRight_Click(object sender, RoutedEventArgs e)
+		{
+			AddComponentRotation = (ComponentRotation)(((int)AddComponentRotation + 1) % 4);
+			ComponentRotationIndicatorTransform.Angle = (ComponentRotationIndicatorTransform.Angle + 90) % 360;
+		}
+
 		private void PlaceComponent(object sender, MouseButtonEventArgs e)
 		{
 			if(!Net.wireAttached)
@@ -566,6 +578,7 @@ namespace FilterDesigner
 				}
 				if(newComponent != null)
 				{
+					newComponent.Rotation = AddComponentRotation;
 					newComponent.Draw();
 					//Keyboard.Focus(newComponent.VisualGroup);	// Doesn't work
 				}
@@ -634,6 +647,21 @@ namespace FilterDesigner
 			Net.attachedLineOrigin = null;
 			Net.attachedNet = null;
 			Net.wireAttached = false;
+		}
+
+		private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+		{
+			if(e.Key == Key.R && e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Control))
+			{
+				if(e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Shift))
+				{
+					BtnRotateLeft_Click(null, null);
+				}
+				else
+				{
+					BtnRotateRight_Click(null, null);
+				}
+			}
 		}
 	}
 
@@ -1744,7 +1772,6 @@ namespace FilterDesigner
 		public static void Canvas_LeftMouseDown(object sender, MouseButtonEventArgs e)
 		{
 			Keyboard.ClearFocus();
-			//Keyboard.Focus(mainWindow);
 			FocusManager.SetFocusedElement(mainWindow, mainWindow);
 			mainWindow.Focus();
 			if(wireAttached)
@@ -1791,7 +1818,22 @@ namespace FilterDesigner
 
 	public abstract class Component
 	{
-		public string Name { get; set; }
+		private string name;
+		public string Name
+		{
+			get
+			{
+				return name;
+			}
+			set
+			{
+				name = value;
+				if(nameText != null)
+				{
+					nameText.Text = name;
+				}
+			}
+		}
 		
 		protected double x;
 		public double X
@@ -1849,6 +1891,7 @@ namespace FilterDesigner
 		public static int baseCanvasMaxZIndex = 0;
 		
 		public BorderedCanvas VisualGroup;
+		protected TextBlock nameText;
 
 		public ConnectionPort PortA { get; protected set; }
 		public ConnectionPort PortB { get; protected set; }
@@ -2366,18 +2409,26 @@ namespace FilterDesigner
 			RenderOptions.SetEdgeMode(symbol, EdgeMode.Aliased);
 			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);
 
+			nameText = new TextBlock
+			{
+				Text = Name
+			};
+
 			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
 			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
 			Canvas.SetLeft(symbol, 22);
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 15);
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + PortB_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortB, Y + PortB_MarginY - ConnectionPort.Radius);
 			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(symbol);
+			VisualGroup.Children.Add(nameText);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);
@@ -2587,18 +2638,26 @@ namespace FilterDesigner
 			RenderOptions.SetEdgeMode(symbol, EdgeMode.Aliased);
 			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);
 
+			nameText = new TextBlock
+			{
+				Text = Name
+			};
+
 			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
 			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
 			Canvas.SetLeft(symbol, 22);
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 15);
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
 			Canvas.SetLeft(PortA, X + ComponentMargins.Inductor_PortA_X - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + ComponentMargins.Inductor_PortA_Y - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Inductor_PortB_X - ConnectionPort.Radius);
 			Canvas.SetTop(PortB, Y + ComponentMargins.Inductor_PortB_Y - ConnectionPort.Radius);
 			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(symbol);
+			VisualGroup.Children.Add(nameText);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);
@@ -2816,7 +2875,11 @@ namespace FilterDesigner
 				StrokeThickness = WireThickness,
 				SnapsToDevicePixels = true
 			};
-			
+			nameText = new TextBlock
+			{
+				Text = Name
+			};
+
 			RenderOptions.SetEdgeMode(border, EdgeMode.Aliased);
 			RenderOptions.SetEdgeMode(capContent, EdgeMode.Aliased);
 			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);		
@@ -2828,6 +2891,8 @@ namespace FilterDesigner
 			Canvas.SetTop(border, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 25);
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
 			Canvas.SetLeft(PortA, X + ComponentMargins.Capacitor_PortA_X - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + ComponentMargins.Capacitor_PortA_Y - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Capacitor_PortB_X - ConnectionPort.Radius);
@@ -2839,6 +2904,7 @@ namespace FilterDesigner
 			Panel.SetZIndex(PortB, 4);
 			VisualGroup.Children.Add(border);
 			VisualGroup.Children.Add(leads);
+			VisualGroup.Children.Add(nameText);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);
