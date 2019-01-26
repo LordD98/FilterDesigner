@@ -1,0 +1,34 @@
+﻿<Window x:Class="FilterDesigner.ComponentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:FilterDesigner"
+        mc:Ignorable="d"
+        Title="Edit Component" Width="270" SnapsToDevicePixels="True" Closed="ComponentDialog_Closed" Initialized="ComponentDialog_Loaded" Icon="Symbol.png" SizeToContent="Height" Activated="Test" MinWidth="170" KeyDown="Dialog_KeyDown">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition/>
+			<RowDefinition Height="30"/>
+		</Grid.RowDefinitions>
+		<StackPanel Grid.Row="0">
+			<DockPanel Margin="5,5,5,0">
+				<Label Content="Name" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" SnapsToDevicePixels="True" Width="50"/>
+				<TextBox x:Name="tbxName" Height="23" Margin="0" TextWrapping="Wrap" Text="Name" SnapsToDevicePixels="True"/>
+			</DockPanel>
+			<DockPanel Margin="5,0">
+				<Label Content="Value" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" RenderTransformOrigin="0.294,1.278" SnapsToDevicePixels="True" Width="50"/>
+				<TextBox x:Name="tbxValue" Height="23" Margin="0" TextWrapping="Wrap" Text="Value" SnapsToDevicePixels="True"/>
+			</DockPanel>
+			<DockPanel Margin="5,0">
+				<Label Content="Type" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" SnapsToDevicePixels="True" Width="50"/>
+				<ComboBox x:Name="cbxType" Margin="0" SnapsToDevicePixels="True"/>
+			</DockPanel>
+		</StackPanel>
+		<UniformGrid Height="20" Columns="3" Margin="0,5" Grid.Row="1">
+			<Button x:Name="btnReset" Content="Reset" Margin="5,0,1.66666666666667,0" Grid.Column="0" Click="BtnReset_Click"/>
+			<Button x:Name="btnCancel" Content="Cancel" Margin="3.33333333333333,0" Grid.Column="1" Click="BtnCancel_Click"/>
+			<Button x:Name="btnOk" Content="Ok" Margin="1.66666666666667,0,5,0" Grid.Column="2" Click="BtnOk_Click"/>
+		</UniformGrid>
+	</Grid>
+</Window>

@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+//using static FilterDesigner.MainWindow;
 
 namespace FilterDesigner
 {
@@ -34,6 +35,8 @@ namespace FilterDesigner
 		public static ComponentType ComponentToAdd = ComponentType.None;
 		public static ComponentRotation AddComponentRotation = ComponentRotation.H1;
 
+		public static bool clickedComponent = false;    // Indicates wether a component is clicked
+														// before canvas click executes
 		public static RoutedCommand Clear = new RoutedUICommand("Clear", "Clear", typeof(MainWindow));
 
 		public MainWindow()
@@ -44,6 +47,8 @@ namespace FilterDesigner
 			Net.mainWindow = this;
 			Net.baseCanvas = canvas;
 			Branchpoint.baseCanvas = canvas;
+			canvas.MouseLeftButtonUp += Canvas_LeftMouseUp;
+			canvas.MouseLeftButtonDown += Canvas_LeftMouseDown;
 			canvas.MouseLeftButtonDown += Net.Canvas_LeftMouseDown;
 			canvas.MouseLeftButtonDown += PlaceComponent;
 			canvas.MouseRightButtonDown += (x, y) =>
@@ -96,6 +101,21 @@ namespace FilterDesigner
 			}
 		}
 
+		private void Canvas_LeftMouseDown(object sender, MouseEventArgs e)
+		{
+			if(!clickedComponent)
+			{
+				Keyboard.ClearFocus();
+				FocusManager.SetFocusedElement(this, this);
+				Focus();
+			}
+		}
+
+		private void Canvas_LeftMouseUp(object sender, MouseEventArgs e)
+		{
+			clickedComponent = false;
+		}
+
 		public List<Path> FindPaths(Net A, Net B, List<Component> forbiddenComponents = null)
 		{
 			List<Path> paths = new List<Path>();
@@ -136,8 +156,8 @@ namespace FilterDesigner
 				}
 
 				if(currentPath.Components.Contains(currentComp)
-					|| (forbiddenComponents?.Contains(currentComp)??false)
-					||	currentNetOrder.Contains(currentComp.OtherNet(currentNet))
+					|| (forbiddenComponents?.Contains(currentComp) ?? false)
+					|| currentNetOrder.Contains(currentComp.OtherNet(currentNet))
 					|| currentComp.IsUseless())    // comp. is connected badly
 				{
 					continue;
@@ -401,11 +421,11 @@ namespace FilterDesigner
 				{// TODO: handle edge cases?
 					upperNet--;
 				}
-				while(lowerNet < commonNets.Count-1 && !inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[lowerNet])))
+				while(lowerNet < commonNets.Count - 1 && !inputPaths.Any(p => !endPaths.Contains(p) && p.ContainsNet(commonNets[lowerNet])))
 				{// TODO: handle edge cases?
 					lowerNet++;
 				}
-				
+
 				Net upper = commonNets[upperNet];
 				Net lower = commonNets[lowerNet];
 
@@ -462,7 +482,7 @@ namespace FilterDesigner
 			exp = exp.ToCommonDenominator();
 			exp = exp.ToStandardForm();
 			tbxResult.Text = exp.Evaluate();
-			
+
 			Expression transferFunction = GetTransferFunction
 			(
 				allNets.First(n => n.Name == "$0"),
@@ -557,7 +577,7 @@ namespace FilterDesigner
 
 		private void PlaceComponent(object sender, MouseButtonEventArgs e)
 		{
-			if(!Net.wireAttached)
+			if(!Net.wireAttached && !clickedComponent) //?
 			{
 				e.Handled = true;
 				Point mouse = Mouse.GetPosition(canvas);
@@ -585,6 +605,27 @@ namespace FilterDesigner
 			}
 		}
 
+		public void ReplaceComponent(Component oldComponent, Component newComponent)
+		{
+			if(oldComponent == null || newComponent == null) return;
+			if(oldComponent.NetA == oldComponent.NetB)
+			{
+				oldComponent.NetA?.ReplaceComponent(oldComponent, newComponent);
+			}
+			else
+			{
+				oldComponent.NetA?.ReplaceComponent(oldComponent, newComponent);
+				oldComponent.NetB?.ReplaceComponent(oldComponent, newComponent);
+			}
+			allComponents.Remove(oldComponent);
+			allComponents.Add(newComponent);
+			canvas.Children.Remove(oldComponent.VisualGroup);
+			canvas.Children.Remove(oldComponent.PortA);
+			canvas.Children.Remove(oldComponent.PortB);
+			Component.baseCanvasMaxZIndex--;
+			newComponent.Draw();
+		}
+
 		private void Save_Executed(object sender, RoutedEventArgs e)
 		{
 			Net.CancelCurrentLine();
@@ -606,13 +647,13 @@ namespace FilterDesigner
 		private void Open_Executed(object sender, RoutedEventArgs e)
 		{
 			Clear_Executed();
-			string setting = File.ReadAllText("Settings.txt").Replace("\r","");
+			string setting = File.ReadAllText("Settings.txt").Replace("\r", "");
 			int i = 0;
-			while(i<setting.Length)
+			while(i < setting.Length)
 			{
 				int endIndex = setting.IndexOf('\n', i);
 				if(endIndex == -1) endIndex = setting.Length - 1;
-				if(endIndex < setting.Length-2)
+				if(endIndex < setting.Length - 2)
 				{
 					if(setting[endIndex + 1] == '{')
 					{
@@ -627,13 +668,13 @@ namespace FilterDesigner
 					case 'R':
 					case 'L':
 					case 'C':
-						Component comp = Component.ImportComponent(setting.Substring(i, endIndex - i + 1).Replace("\n",""));
+						Component comp = Component.ImportComponent(setting.Substring(i, endIndex - i + 1).Replace("\n", ""));
 						comp.Draw();
 						break;
 				}
-				i = endIndex+1;
+				i = endIndex + 1;
 			}
-			
+
 		}
 
 		private void Clear_Executed(object sender = null, RoutedEventArgs e = null)
@@ -956,9 +997,9 @@ namespace FilterDesigner
 			}
 			return denominators;
 		}
-		
+
 		public static string ToOneDenominator(string expression)
-		{	
+		{
 			List<string> summands = GetSummands(expression);
 			if(summands.Count < 2) return expression;
 			List<string> denominators = GetFirstOrderDenominators(expression);
@@ -995,7 +1036,7 @@ namespace FilterDesigner
 				return numerator;
 			}
 			string result = "";
-			
+
 			if(numerator.Equals(1))
 			{
 				result += factor;
@@ -1325,11 +1366,11 @@ namespace FilterDesigner
 		public string ExportBranchpoint()
 		{
 			string result = $"B;{X};{Y};";
-			foreach(KeyValuePair<Line,LineEndPoint> kvp in wires)
+			foreach(KeyValuePair<Line, LineEndPoint> kvp in wires)
 			{
 				result += $"{net.wires.IndexOf(kvp.Key)},{(int)kvp.Value}.";
 			}
-			return result.Substring(0,result.Length-1);
+			return result.Substring(0, result.Length - 1);
 		}
 
 		public void Branchpoint_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1399,14 +1440,14 @@ namespace FilterDesigner
 			if(mousedownBranchpoint == this)
 			{
 				branchpointMoving = true;
-				if(net.Components.Count(c => net.connections[c].Any(t => t.Item1==this)) == 0)
+				if(net.Components.Count(c => net.connections[c].Any(t => t.Item1 == this)) == 0)
 				{
 					Point mousePos = Mouse.GetPosition(baseCanvas);
 					X = mousePos.X;
 					Y = mousePos.Y;
 				}
 			}
-		} 
+		}
 
 		public void Branchpoint_RightClick(object senderBp, MouseButtonEventArgs e)
 		{
@@ -1415,9 +1456,9 @@ namespace FilterDesigner
 			message += $"{wires.Count} ";
 			message += (wires.Count == 1) ? "Wire" : "Wires";
 			message += " attached\n";
-			if(net.connections.Count(x => (x.Value.Any(t => t.Item1==this))) > 0)
+			if(net.connections.Count(x => (x.Value.Any(t => t.Item1 == this))) > 0)
 			{
-				Component attachedComponent = net.Components.First(c => net.connections[c].Any(t => t.Item1==this));
+				Component attachedComponent = net.Components.First(c => net.connections[c].Any(t => t.Item1 == this));
 				message += $"Attached Component: {attachedComponent.Name}\n";
 			}
 			message += $"X: {X}, Y: {Y}";
@@ -1429,7 +1470,7 @@ namespace FilterDesigner
 	{
 		public string Name { get; set; }
 		public static readonly double WireThickness = 4;
-		public static readonly Brush WireColor = Brushes.Red; 
+		public static readonly Brush WireColor = Brushes.Red;
 
 		public List<Component> Components { get; }
 		public List<Branchpoint> branchPoints;
@@ -1465,16 +1506,16 @@ namespace FilterDesigner
 			Components = new List<Component>();
 			branchPoints = new List<Branchpoint>();
 			wires = new List<Line>();
-			connections = new Dictionary<Component, List<(Branchpoint,NetPort)>>();
+			connections = new Dictionary<Component, List<(Branchpoint, NetPort)>>();
 			MainWindow.allNets.Add(this);
 		}
 
 		public static Net ImportNet(string str)
 		{
-			string[] net = str.Split(new[]{ "\n", "{", "}" }, StringSplitOptions.RemoveEmptyEntries);
+			string[] net = str.Split(new[] { "\n", "{", "}" }, StringSplitOptions.RemoveEmptyEntries);
 			if(!net[0].StartsWith("N;")) return null;
 			Net result = new Net(net[0].Substring(2));
-			for(int i = 1; i<net.Length; i++)
+			for(int i = 1; i < net.Length; i++)
 			{
 				if(net[i].StartsWith("B;"))
 				{
@@ -1485,9 +1526,9 @@ namespace FilterDesigner
 					string[] lineData = net[i].Split(';');
 					Line line = result.NewWire
 					(
-						double.Parse(lineData[1]), 
-						double.Parse(lineData[2]), 
-						double.Parse(lineData[3]), 
+						double.Parse(lineData[1]),
+						double.Parse(lineData[2]),
+						double.Parse(lineData[3]),
 						double.Parse(lineData[4])
 					);
 					line.Visibility = Visibility.Visible;
@@ -1499,7 +1540,7 @@ namespace FilterDesigner
 		public string ExportNet()
 		{
 			string result = "";
-			result += $"N;{Name}\n{{\n";	// {{ is { in $""
+			result += $"N;{Name}\n{{\n";    // {{ is { in $""
 			foreach(Line line in wires)
 			{
 				result += $"W;{line.X1};{line.Y1};{line.X2};{line.Y2}\n";
@@ -1593,6 +1634,17 @@ namespace FilterDesigner
 			return newLine;
 		}
 
+		public void ReplaceComponent(Component oldComponent, Component newComponent)
+		{
+			if(oldComponent == null || newComponent == null) return;
+			Components.Remove(oldComponent);
+			Components.Add(newComponent);
+			List<(Branchpoint, NetPort)> oldListBps = connections[oldComponent];
+			connections.Remove(oldComponent);
+			connections[newComponent] = oldListBps;
+			// TODO: Update branchpoint positions?
+		}
+
 		public static void CancelCurrentLine()
 		{
 			if(wireAttached)
@@ -1640,7 +1692,7 @@ namespace FilterDesigner
 				wireAttached = true;
 			}
 		}
-		
+
 		public void Move(Component component)
 		{
 			if(connections.ContainsKey(component))
@@ -1724,7 +1776,7 @@ namespace FilterDesigner
 				newBranchPoint = new Branchpoint(newNet, point_x, point_y);
 				if(!newNet.connections.ContainsKey(newComponent))
 				{
-					newNet.connections.Add(newComponent, new List<(Branchpoint,NetPort)>());
+					newNet.connections.Add(newComponent, new List<(Branchpoint, NetPort)>());
 				}
 				newNet.connections[newComponent].Add((newBranchPoint, newPort));
 			}
@@ -1738,7 +1790,7 @@ namespace FilterDesigner
 				{
 					newNet.connections.Add(newComponent, new List<(Branchpoint, NetPort)>());
 				}
-				newNet.connections[newComponent].Add((newBranchPoint,newPort));
+				newNet.connections[newComponent].Add((newBranchPoint, newPort));
 			}
 			newNet.Branchpoint_Connect(newBranchPoint);
 		}
@@ -1753,11 +1805,11 @@ namespace FilterDesigner
 			net.branchPoints.ForEach((b) => b.net = this);
 			branchPoints.AddRange(net.branchPoints);
 			Components.AddRange(net.Components);
-			foreach(KeyValuePair<Component, List<(Branchpoint,NetPort)>> kvp in net.connections)
+			foreach(KeyValuePair<Component, List<(Branchpoint, NetPort)>> kvp in net.connections)
 			{
 				if(!connections.ContainsKey(kvp.Key))
 				{
-					connections.Add(kvp.Key, new List<(Branchpoint,NetPort)>());
+					connections.Add(kvp.Key, new List<(Branchpoint, NetPort)>());
 				}
 				connections[kvp.Key].AddRange(kvp.Value);
 			}
@@ -1771,10 +1823,7 @@ namespace FilterDesigner
 
 		public static void Canvas_LeftMouseDown(object sender, MouseButtonEventArgs e)
 		{
-			Keyboard.ClearFocus();
-			FocusManager.SetFocusedElement(mainWindow, mainWindow);
-			mainWindow.Focus();
-			if(wireAttached)
+			if(!MainWindow.clickedComponent && wireAttached)
 			{
 				Point clickPoint = Mouse.GetPosition(baseCanvas);
 				attachedLine.X2 = clickPoint.X;
@@ -1787,6 +1836,7 @@ namespace FilterDesigner
 				newBranchPoint.wires.Add(newLine, LineEndPoint.Point1);
 				attachedLine = newLine;
 				attachedLineOrigin = newBranchPoint;
+
 			}
 		}
 
@@ -1797,8 +1847,8 @@ namespace FilterDesigner
 	}
 
 	public enum NetPort { A, B };
-	public enum ComponentRotation { H1, V1, H2, V2 };	// Horizontal & vertical orientations
-	public abstract class ComponentMargins	// Distance to center/origin of component
+	public enum ComponentRotation { H1, V1, H2, V2 };   // Horizontal & vertical orientations
+	public abstract class ComponentMargins  // Distance to center/origin of component
 	{
 		public static double Resistor_PortA_X = -44;
 		public static double Resistor_PortA_Y = +0;
@@ -1834,7 +1884,7 @@ namespace FilterDesigner
 				}
 			}
 		}
-		
+
 		protected double x;
 		public double X
 		{
@@ -1889,7 +1939,7 @@ namespace FilterDesigner
 		public static MainWindow mainWindow;
 		public static Canvas baseCanvas;
 		public static int baseCanvasMaxZIndex = 0;
-		
+
 		public BorderedCanvas VisualGroup;
 		protected TextBlock nameText;
 
@@ -1913,6 +1963,7 @@ namespace FilterDesigner
 			VisualGroup.MouseLeftButtonDown += (x, y) => Symbol_MouseLeftDown(this, y);
 			VisualGroup.MouseRightButtonDown += (x, y) => Symbol_MouseRightDown(this, y);
 			VisualGroup.KeyDown += (x, y) => Symbol_KeyDown(this, y);
+			VisualGroup.MouseDoubleClick += (x, y) => Symbol_MouseDoubleClick(this, y);
 			Panel.SetZIndex(VisualGroup, 0);
 			PortA = new ConnectionPort();
 			PortB = new ConnectionPort();
@@ -1937,7 +1988,7 @@ namespace FilterDesigner
 				{
 					case 'R':
 					{
-						result =  new Resistor
+						result = new Resistor
 						(
 							data[1],
 							double.Parse(data[2]),
@@ -2067,6 +2118,20 @@ namespace FilterDesigner
 
 		public abstract void Draw();
 
+		public abstract void DrawRotation();
+		public virtual void RotateLeft()
+		{
+			Rotation = (ComponentRotation)(((int)Rotation + 1) % 4);
+			DrawRotation();
+		}
+		public virtual void RotateRight()
+		{
+			Rotation = (ComponentRotation)(((int)Rotation - 1) % 4);
+			DrawRotation();
+		}
+
+		public abstract void ShowInfo();
+
 		public static void UpdateBaseCanvas()
 		{
 			//baseCanvasMaxZIndex = baseCanvas.Children.OfType<Canvas>().Count();
@@ -2080,7 +2145,7 @@ namespace FilterDesigner
 				{
 					Panel.SetZIndex(elem, baseCanvasMaxZIndex + 2);
 				}
-				else if(elem is Ellipse)	// Branchpoint
+				else if(elem is Ellipse)    // Branchpoint
 				{
 					Panel.SetZIndex(elem, baseCanvasMaxZIndex + 3);
 				}
@@ -2115,7 +2180,8 @@ namespace FilterDesigner
 		{
 			//Keyboard.Focus(sender.VisualGroup.grid);
 			sender.VisualGroup.KeyboardFocus();
-			e.Handled = true;
+			//e.Handled = true;
+			MainWindow.clickedComponent = true;
 			int oldZIndex = Panel.GetZIndex(sender.VisualGroup);
 			foreach(BorderedCanvas childCanvas in baseCanvas.Children.OfType<BorderedCanvas>())
 			{
@@ -2148,14 +2214,14 @@ namespace FilterDesigner
 
 		public static void Symbol_MouseMove(object sender, MouseEventArgs e)
 		{
-			if(Mouse.LeftButton.HasFlag(MouseButtonState.Pressed) && movedComponent != null)
+			if(Mouse.LeftButton.HasFlag(MouseButtonState.Pressed) && movedComponent != null && MainWindow.clickedComponent)
 			{
 				Point newMousePos = Mouse.GetPosition(baseCanvas);
 				double mouseStartDiffX = newMousePos.X - mousedown_x;
 				double mouseStartDiffY = newMousePos.Y - mousedown_y;
 				double mouseStepDeltaX = moveStartX + mouseStartDiffX - movedComponent.X;
 				double mouseStepDeltaY = moveStartY + mouseStartDiffY - movedComponent.Y;
-				
+
 				movedComponent.X = moveStartX + mouseStartDiffX;        // Move component
 				movedComponent.Y = moveStartY + mouseStartDiffY;        //
 			}
@@ -2163,18 +2229,14 @@ namespace FilterDesigner
 
 		public static void Symbol_MouseRightDown(Component sender, MouseButtonEventArgs e)
 		{
-			string message = "";
-			message += $"Name: {sender.Name}\n";
-			message += $"NetA: {sender.NetA?.Name ?? "null"}\n";
-			message += $"NetB: {sender.NetB?.Name ?? "null"}\n";
-			message += $"X: {sender.X}, Y: {sender.Y}";
-			MessageBox.Show(message, "Component");
+			sender.ShowInfo();
 		}
 
 		public static void Symbol_KeyDown(Component sender, KeyEventArgs e)
 		{
 			if(e.Key == Key.R && e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Control))
 			{
+				e.Handled = true;
 				if(e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Shift))
 				{
 					sender.RotateRight();
@@ -2186,16 +2248,52 @@ namespace FilterDesigner
 			}
 		}
 
-		public abstract void DrawRotation();
-		public virtual void RotateLeft()
+		public virtual void Symbol_MouseDoubleClick(Component component, MouseButtonEventArgs e)
 		{
-			Rotation = (ComponentRotation)(((int)Rotation + 1) % 4);
-			DrawRotation();
-		}
-		public virtual void RotateRight()
-		{
-			Rotation = (ComponentRotation)(((int)Rotation - 1) % 4);
-			DrawRotation();
+			e.Handled = true;   // This is necessary so that after the dialog is closed,
+								// the void Component.Symbol_MouseLeftDown doesn't get called
+								// and the Component doesn't get focused when the baseCanvas is clicked
+			MainWindow.clickedComponent = false;
+			ComponentDialog dialog;
+			if(component is Resistor)
+				dialog = new ComponentDialog(Name, (component as Resistor).Resistance, MainWindow.ComponentType.Resistor);
+			else if(component is Capacitor)
+				dialog = new ComponentDialog(Name, (component as Capacitor).Capacitance, MainWindow.ComponentType.Capacitor);
+			else // if(component is Inductor)
+				dialog = new ComponentDialog(Name, (component as Inductor).Inductance, MainWindow.ComponentType.Inductor);
+			dialog.Owner = mainWindow;
+			if(dialog.ShowDialog() ?? false)
+			{
+				if(dialog.TypeModified)
+				{
+					Component newComponent;
+					switch(dialog.ResultType)
+					{
+						default:
+						case MainWindow.ComponentType.Resistor:
+							newComponent = new Resistor(dialog.ResultName, component.X, component.Y);
+							break;
+						case MainWindow.ComponentType.Capacitor:
+							newComponent = new Capacitor(dialog.ResultName, component.X, component.Y);
+							break;
+						case MainWindow.ComponentType.Inductor:
+							newComponent = new Inductor(dialog.ResultName, component.X, component.Y);
+							break;
+					}
+					newComponent.NetA = component.NetA;
+					newComponent.NetB = component.NetB;
+					newComponent.Rotation = component.Rotation;
+					mainWindow.ReplaceComponent(component, newComponent);
+				}
+				else
+				{
+					component.Name = dialog.ResultName;
+					dialog.ChangeComponentValue(component);
+				}
+			}
+			else
+			{
+			}
 		}
 
 		public virtual (double X, double Y) GetPortCoordinates(NetPort port)
@@ -2267,7 +2365,7 @@ namespace FilterDesigner
 	public class Resistor : Component
 	{
 		public double Resistance { get; set; }
-		
+
 		public override double PortA_MarginX
 		{
 			get
@@ -2376,7 +2474,7 @@ namespace FilterDesigner
 		}
 
 		public override string ExportComponent()
-		{	
+		{
 			return $"R;{Name};{Resistance}" + base.ExportComponent();
 		}
 
@@ -2420,8 +2518,8 @@ namespace FilterDesigner
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 15);
-			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
-			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 40);   // -20
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 15);   // -25
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + PortB_MarginX - ConnectionPort.Radius);
@@ -2436,10 +2534,10 @@ namespace FilterDesigner
 			DrawRotation();
 			UpdateBaseCanvas();
 		}
-
+		
 		public override void DrawRotation()
 		{
-			if((int)Rotation % 2 == 0)	// Horizontal
+			if((int)Rotation % 2 == 0)  // Horizontal
 			{
 				VisualGroup.Width = 94;
 				VisualGroup.Height = 30;
@@ -2476,7 +2574,18 @@ namespace FilterDesigner
 			X = x;
 			Y = y;
 		}
-		
+
+		public override void ShowInfo()
+		{
+			string message = "";
+			message += $"Name: {Name}\n";
+			message += $"Value: {Resistance} Ohm\n";
+			message += $"NetA: {NetA?.Name ?? "null"}\n";
+			message += $"NetB: {NetB?.Name ?? "null"}\n";
+			message += $"X: {X}, Y: {Y}";
+			MessageBox.Show(message, "Resistor");
+		}
+
 		public override string ToString()
 		{
 			return Name;
@@ -2496,7 +2605,7 @@ namespace FilterDesigner
 	public class Inductor : Component
 	{
 		public double Inductance { get; set; }
-		
+
 		public override double PortA_MarginX
 		{
 			get
@@ -2706,7 +2815,18 @@ namespace FilterDesigner
 			X = x;
 			Y = y;
 		}
-		
+
+		public override void ShowInfo()
+		{
+			string message = "";
+			message += $"Name: {Name}\n";
+			message += $"Value: {Inductance}H\n";
+			message += $"NetA: {NetA?.Name ?? "null"}\n";
+			message += $"NetB: {NetB?.Name ?? "null"}\n";
+			message += $"X: {X}, Y: {Y}";
+			MessageBox.Show(message, "Inductor");
+		}
+
 		public override Impedance GetImpedance(double frequency)
 		{
 			return new Impedance(0, 2 * Math.PI * frequency * Inductance);
@@ -2882,7 +3002,7 @@ namespace FilterDesigner
 
 			RenderOptions.SetEdgeMode(border, EdgeMode.Aliased);
 			RenderOptions.SetEdgeMode(capContent, EdgeMode.Aliased);
-			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);		
+			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);
 
 			border.Child = capContent;
 			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
@@ -2928,10 +3048,10 @@ namespace FilterDesigner
 				leads.X2 = 50;
 				leads.Y1 = 0;
 				leads.Y2 = 0;
-				Canvas.SetLeft(border, 22);	//?
-				Canvas.SetTop(border, 5);	//?
-				Canvas.SetLeft(leads, 2);	//?
-				Canvas.SetTop(leads, 25);	//?
+				Canvas.SetLeft(border, 22); //?
+				Canvas.SetTop(border, 5);   //?
+				Canvas.SetLeft(leads, 2);   //?
+				Canvas.SetTop(leads, 25);   //?
 			}
 			else
 			{
@@ -2946,10 +3066,10 @@ namespace FilterDesigner
 				leads.X2 = 0;
 				leads.Y1 = 0;
 				leads.Y2 = 50;
-				Canvas.SetLeft(border, 5);	//?
-				Canvas.SetTop(border, 22);	//?
-				Canvas.SetLeft(leads, 25);	//?
-				Canvas.SetTop(leads, 2);	//?
+				Canvas.SetLeft(border, 5);  //?
+				Canvas.SetTop(border, 22);  //?
+				Canvas.SetLeft(leads, 25);  //?
+				Canvas.SetTop(leads, 2);    //?
 			}
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
@@ -2958,7 +3078,18 @@ namespace FilterDesigner
 			X = x;
 			Y = y;
 		}
-	
+
+		public override void ShowInfo()
+		{
+			string message = "";
+			message += $"Name: {Name}\n";
+			message += $"Value: {Capacitance}F\n";
+			message += $"NetA: {NetA?.Name ?? "null"}\n";
+			message += $"NetB: {NetB?.Name ?? "null"}\n";
+			message += $"X: {X}, Y: {Y}";
+			MessageBox.Show(message, "Capacitor");
+		}
+
 		public override Impedance GetImpedance(double frequency)
 		{
 			return new Impedance(0, 1 / (2 * Math.PI * frequency * Capacitance));
@@ -2971,7 +3102,7 @@ namespace FilterDesigner
 				Numerator = 1,
 				Denominator = new Product
 				(
-					Expression.S, 
+					Expression.S,
 					new ComponentExpression(this)
 				)
 			};
