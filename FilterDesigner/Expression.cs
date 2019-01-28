@@ -8,7 +8,7 @@ namespace FilterDesigner
 	public enum Component_Order { RLC, RCL };
 	public enum Product_Order { _2SC, _S2C, _2CS };
 	public enum Sum_Order { S2_S, S_S2 };
-	
+
 	public abstract class Expression
 	{
 		public static Component_Order ComponentOrder = Component_Order.RLC;
@@ -108,8 +108,9 @@ namespace FilterDesigner
 			return -1;
 		}
 
-		public abstract string Evaluate();
 		public abstract Impedance EvaluateImpedance(double frequency);
+		public abstract string Evaluate();
+		public abstract string EvaluateLaTeX();
 
 		public abstract bool ContainsFraction();
 
@@ -224,7 +225,7 @@ namespace FilterDesigner
 		}
 
 		public abstract bool IsConst();
-		
+
 		public static int Compare(Expression x, Expression y)
 		{
 			if(!(x is ComponentExpression) && !(y is ComponentExpression))
@@ -292,7 +293,7 @@ namespace FilterDesigner
 
 		public abstract bool Contains(Func<Expression, bool> predicate);
 
-		public abstract List<Expression> GetDenominators(List<Expression> result=null);
+		public abstract List<Expression> GetDenominators(List<Expression> result = null);
 
 		public virtual Expression Multiply(Expression factor)
 		{
@@ -301,7 +302,7 @@ namespace FilterDesigner
 			p.AddFactor(this);
 			return p;
 		}
-		
+
 		public abstract Expression Copy();
 
 		public abstract Expression Unpack();
@@ -418,6 +419,16 @@ namespace FilterDesigner
 			return copy;
 		}
 
+		public override Impedance EvaluateImpedance(double frequency)
+		{
+			Impedance temp = new Impedance();
+			foreach(Expression summand in Summands)
+			{
+				temp = temp + summand.EvaluateImpedance(frequency);
+			}
+			return temp;
+		}
+
 		public override string Evaluate()
 		{
 			if(Summands.Count == 0) return "0";
@@ -431,14 +442,17 @@ namespace FilterDesigner
 			return result.Substring(1);
 		}
 
-		public override Impedance EvaluateImpedance(double frequency)
+		public override string EvaluateLaTeX()
 		{
-			Impedance temp = new Impedance();
-			foreach(Expression summand in Summands)
+			if(Summands.Count == 0) return "0";
+			string result = "";
+			foreach(Expression exp in Summands)
 			{
-				temp = temp + summand.EvaluateImpedance(frequency);
+				string expEvaluate = exp.EvaluateLaTeX();
+				if(expEvaluate.Equals("0")) continue;
+				result += "+" + expEvaluate;
 			}
-			return temp;
+			return result.Substring(1);
 		}
 
 		public void AddSummand(Expression exp, int index = -1)
@@ -507,27 +521,12 @@ namespace FilterDesigner
 
 		public override Expression ToCommonDenominator()
 		{
-			List<Expression> denominators = new List<Expression>();
+			List<Expression> denominators = GetDenominators();
 			Sum numerator = new Sum();
-			Product denominator = new Product();
-			foreach(Division summand in Summands.Where(s => s is Division))
+			Expression denominator = new Product(denominators);
+			for(int i = 0; i < Summands.Count; i++)
 			{
-				denominators.Add(summand.Denominator);
-				denominator.AddFactor(summand.Denominator);
-			}
-			foreach(Expression summand in Summands)
-			{
-				Product product = new Product(denominators);
-				if(summand is Division)
-				{
-					product = product.RemoveChild((summand as Division).Denominator) as Product;
-					product.AddFactor((summand as Division).Numerator);
-				}
-				else
-				{
-					product.AddFactor(summand);
-				}
-				numerator.AddSummand(product);
+				numerator.AddSummand(Summands[i].Multiply(denominator.Copy()));
 			}
 			Division result = new Division
 			{
@@ -536,7 +535,7 @@ namespace FilterDesigner
 			};
 			return result;
 		}
-	 
+
 		public override Expression ToStandardForm()
 		{ // Standardform is a sum of final products, divisions & valueexpressions
 		  //if(ContainsFraction()) return ToCommonDenominator().ToStandardForm();
@@ -608,7 +607,7 @@ namespace FilterDesigner
 					summandPowers[i] = 0;
 				}
 			}
-			if(summandPowers.All(s => s==0)) return result.Unpack();
+			if(summandPowers.All(s => s == 0)) return result.Unpack();
 			Dictionary<int, List<Expression>> dictListSTerms = new Dictionary<int, List<Expression>>();
 			int smallestPower = summandPowers.Min() - 1;
 			for(int i = 0; i < summandPowers.Length; i++)
@@ -674,7 +673,7 @@ namespace FilterDesigner
 						if(expression.Equals(s_block))
 							sum.AddSummand(1);
 						else
-							sum.AddSummand(new S_Block((expression as S_Block).Exponent-kvp.Key));
+							sum.AddSummand(new S_Block((expression as S_Block).Exponent - kvp.Key));
 					}
 					else if(kvp.Key == 0)
 					{
@@ -848,7 +847,7 @@ namespace FilterDesigner
 		{
 			this.Factors = new List<Expression>(Factors);
 		}
-		
+
 		public Product(params Expression[] terms)
 		{
 			Factors = new List<Expression>();
@@ -857,7 +856,7 @@ namespace FilterDesigner
 				AddFactor(terms[i]);
 			}
 		}
-		
+
 		public Product Merge(List<Expression> newFactors)
 		{
 			Product copy = Copy() as Product;
@@ -877,7 +876,17 @@ namespace FilterDesigner
 			}
 			return copy;
 		}
-		
+
+		public override Impedance EvaluateImpedance(double frequency)
+		{
+			Impedance temp = new Impedance(1);
+			foreach(Expression factor in Factors)
+			{
+				temp = temp * factor.EvaluateImpedance(frequency);
+			}
+			return temp;
+		}
+
 		public override string Evaluate()
 		{
 			string result = "";
@@ -911,14 +920,37 @@ namespace FilterDesigner
 			return result;
 		}
 
-		public override Impedance EvaluateImpedance(double frequency)
+		public override string EvaluateLaTeX()
 		{
-			Impedance temp = new Impedance(1);
-			foreach(Expression factor in Factors)
+			string result = "";
+			if(Factors.All(f => f.Equals(1))) return "1";
+			foreach(Expression exp in Factors)
 			{
-				temp = temp * factor.EvaluateImpedance(frequency);
+				if(exp is Sum)
+				{
+					string expEvaluate = exp.EvaluateLaTeX();
+					if(expEvaluate.Equals("1"))
+					{
+						continue;
+					}
+					if(expEvaluate.Equals("0")) return "0";
+					if(!result.Equals("") && !result.EndsWith(")")) result += "*";
+					result += "(" + expEvaluate + ")";
+				}
+				else
+				{
+					string expEvaluate = exp.EvaluateLaTeX();
+					if(expEvaluate.Equals("1"))
+					{
+						continue;
+					}
+					if(expEvaluate.Equals("0")) return "0";
+					if(!result.Equals("")) result += "*";
+					result += expEvaluate;
+				}
+				if(result.Equals("")) return "1";
 			}
-			return temp;
+			return result;
 		}
 
 		public void AddFactor(Expression exp)
@@ -1040,6 +1072,26 @@ namespace FilterDesigner
 					result = result.RemoveChild(product) as Product;
 					result = result.Merge(product) as Product;
 				}
+
+				if(result.Factors.Any(f => f is Division))
+				{
+					Product num = new Product();
+					Product den = new Product();
+					foreach(Expression factor in result.Factors)
+					{
+						if(factor is Division)
+						{
+							num.AddFactor((factor as Division).Numerator);
+							den.AddFactor((factor as Division).Denominator);
+						}
+						else
+						{
+							num.AddFactor(factor);
+						}
+					}
+					return new Division(num, den).ToStandardForm();
+				}
+
 				int s_count = 0;
 				double const_count = 1;
 				List<Expression> newFactors = new List<Expression>();
@@ -1058,7 +1110,7 @@ namespace FilterDesigner
 						newFactors.Add(result.Factors[i]);
 					}
 				}
-				
+
 				newFactors.Sort(Compare);
 
 				switch(ProductOrder)
@@ -1334,6 +1386,11 @@ namespace FilterDesigner
 			Numerator = num;
 			Denominator = den;
 		}
+		
+		public override Impedance EvaluateImpedance(double frequency)
+		{
+			return Numerator.EvaluateImpedance(frequency) / Denominator.EvaluateImpedance(frequency);
+		}
 
 		public override string Evaluate()
 		{
@@ -1359,9 +1416,9 @@ namespace FilterDesigner
 			return result;
 		}
 
-		public override Impedance EvaluateImpedance(double frequency)
+		public override string EvaluateLaTeX()
 		{
-			return Numerator.EvaluateImpedance(frequency) / Denominator.EvaluateImpedance(frequency);
+			return $"\\frac{{{Numerator.EvaluateLaTeX()}}}{{{Denominator.Evaluate()}}}";
 		}
 
 		public override Expression ToCommonDenominator()
@@ -1583,7 +1640,7 @@ namespace FilterDesigner
 			}
 			return copy.Unpack();
 		}
-		
+
 		public override bool IsConst()
 		{
 			return Numerator.IsConst() && Denominator.IsConst();
@@ -1757,15 +1814,6 @@ namespace FilterDesigner
 			Value = val;
 		}
 
-		public override string Evaluate()
-		{
-			if(Value != null)
-				return Value;
-			else if(component?.Name != null)
-				return component.Name;
-			else return "";
-		}
-
 		public override Impedance EvaluateImpedance(double frequency)
 		{
 			if(component is Resistor)
@@ -1783,6 +1831,20 @@ namespace FilterDesigner
 			return null;
 		}
 
+		public override string Evaluate()
+		{
+			if(Value != null)
+				return Value;
+			else if(component?.Name != null)
+				return component.Name;
+			else return "";
+		}
+
+		public override string EvaluateLaTeX()
+		{
+			return Evaluate();
+		}
+
 		public override Expression Copy()
 		{
 			ComponentExpression copy = new ComponentExpression(component)
@@ -1796,7 +1858,7 @@ namespace FilterDesigner
 		{
 			return false;
 		}
-		
+
 		public override bool IsConst()
 		{
 			return false;
@@ -1806,10 +1868,15 @@ namespace FilterDesigner
 	public class ConstExpression : ValueExpression
 	{
 		public double Value;
-		
+
 		public ConstExpression(double val)
 		{
 			Value = val;
+		}
+
+		public override Impedance EvaluateImpedance(double frequency)
+		{
+			return new Impedance(Value);
 		}
 
 		public override string Evaluate()
@@ -1817,9 +1884,9 @@ namespace FilterDesigner
 			return Value.ToString();
 		}
 
-		public override Impedance EvaluateImpedance(double frequency)
+		public override string EvaluateLaTeX()
 		{
-			return new Impedance(Value);
+			return Value.ToString();
 		}
 
 		public override Expression Copy()
@@ -1831,7 +1898,7 @@ namespace FilterDesigner
 		{
 			return Value == 1;
 		}
-		
+
 		public override bool IsConst()
 		{
 			return true;
@@ -1847,6 +1914,11 @@ namespace FilterDesigner
 			Exponent = exponent;
 		}
 
+		public override Impedance EvaluateImpedance(double frequency)
+		{
+			return new Impedance(0, 2 * Math.PI * frequency);
+		}
+
 		public override string Evaluate()
 		{
 			if(Exponent <= 0)
@@ -1857,11 +1929,11 @@ namespace FilterDesigner
 				return $"s^{Exponent}";
 		}
 
-		public override Impedance EvaluateImpedance(double frequency)
+		public override string EvaluateLaTeX()
 		{
-			return new Impedance(0, 2 * Math.PI * frequency);
+			return Evaluate();
 		}
-		
+
 		public override Expression ToStandardForm()
 		{
 			if(Exponent == 0)

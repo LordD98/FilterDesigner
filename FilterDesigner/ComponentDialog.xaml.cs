@@ -23,27 +23,30 @@ namespace FilterDesigner
 		public bool Modified = false;
 		public bool TypeModified = false;
 
+		private ComponentType oldType;
 		public ComponentType ResultType
 		{
 			get
 			{
-				switch((ComponentType)cbxType.SelectedItem)
+				switch((ComponentType)cmbType.SelectedItem)
 				{
 					case ComponentType.Resistor:
 					case ComponentType.Capacitor:
 					case ComponentType.Inductor:
-						return (ComponentType)cbxType.SelectedItem;
+						return (ComponentType)cmbType.SelectedItem;
 					default:
 						return oldType;
 				}
 			}
 		}
-		private ComponentType oldType;
+
+		private string oldName;
 		public string ResultName
 		{
 			get { return tbxName.Text; }
 		}
-		private string oldName;
+
+		private double oldValue;
 		public double ResultValue
 		{
 			get
@@ -58,21 +61,42 @@ namespace FilterDesigner
 				}
 			}
 		}
-		private double oldValue;
 
-		public ComponentDialog(string name, double value, ComponentType type)
+		private bool oldShowName;
+		public bool ResultShowName
+		{
+			get
+			{
+				return chkShowName.IsChecked ?? false;
+			}
+		}
+
+		private bool oldShowValue;
+		public bool ResultShowValue
+		{
+			get
+			{
+				return chkShowValue.IsChecked ?? false;
+			}
+		}
+
+		public ComponentDialog(string name, double value, ComponentType type, bool showName, bool showValue)
         {
 			oldName = name;
 			oldValue = value;
 			oldType = type;
-            InitializeComponent();
+			oldShowName = showName;
+			oldShowValue = showValue;
+			InitializeComponent();
 		}
 
 		private void BtnReset_Click(object sender = null, RoutedEventArgs e = null)
 		{
 			tbxName.Text = oldName;
 			tbxValue.Text = oldValue.ToString();
-			cbxType.SelectedItem = oldType;
+			cmbType.SelectedItem = oldType;
+			chkShowName.IsChecked = oldShowName;
+			chkShowValue.IsChecked = oldShowValue;
 		}
 
 		private void BtnCancel_Click(object sender, RoutedEventArgs e)
@@ -90,11 +114,15 @@ namespace FilterDesigner
 			double resVal = ResultValue;
 			if(resVal != oldValue)
 				Modified = true;
-			if((ComponentType)cbxType.SelectedItem != oldType)
+			if((ComponentType)cmbType.SelectedItem != oldType)
 			{
 				TypeModified = true;
 				Modified = true;
 			}
+			if(chkShowName.IsChecked != oldShowName)
+				Modified = true;
+			if(chkShowValue.IsChecked != oldShowValue)
+				Modified = true;
 			if(Modified)
 				DialogResult = true;
 			else
@@ -104,9 +132,9 @@ namespace FilterDesigner
 
 		private void ComponentDialog_Loaded(object sender, EventArgs e)
 		{
-			cbxType.Items.Add(ComponentType.Resistor);
-			cbxType.Items.Add(ComponentType.Capacitor);
-			cbxType.Items.Add(ComponentType.Inductor);
+			cmbType.Items.Add(ComponentType.Resistor);
+			cmbType.Items.Add(ComponentType.Capacitor);
+			cmbType.Items.Add(ComponentType.Inductor);
 			BtnReset_Click();
 		}
 
@@ -119,11 +147,11 @@ namespace FilterDesigner
 			}
 		}
 
-		private void Test(object sender, EventArgs e)
-		{
-			MinHeight = ActualHeight;                   // Fix height => no vertical resize
-			MaxHeight = ActualHeight;                   //
-		}
+		//private void Test(object sender, EventArgs e)
+		//{
+		//	MinHeight = ActualHeight;                   // Fix height => no vertical resize
+		//	MaxHeight = ActualHeight;                   //
+		//}
 
 		public void ChangeComponentValue(Component component)	// Modifies the value of the given component
 		{

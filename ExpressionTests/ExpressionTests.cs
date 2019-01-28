@@ -191,6 +191,53 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
+		public void DivisionReduce_Evaluates1()
+		{
+			Component_Order oldCompOrder = Expression.ComponentOrder;
+			Product_Order oldProdOrder = Expression.ProductOrder;
+			Sum_Order oldSumOrder = Expression.SumOrder;
+			Expression.ComponentOrder = Component_Order.RCL;
+			Expression.ProductOrder = Product_Order._2SC;
+			Expression.SumOrder = Sum_Order.S2_S;
+			Expression C = new ComponentExpression("C");
+			Expression s = Expression.S;
+			Expression exp1 = s * C * (1 / (s * C));
+			Expression exp2 = exp1.ToStandardForm();
+
+			Assert.IsTrue(exp1.Equals(1) && exp2.Equals(1));
+			Assert.AreEqual(exp2.Evaluate(), "1");
+
+			Expression.ComponentOrder = oldCompOrder;
+			Expression.ProductOrder = oldProdOrder;
+			Expression.SumOrder = oldSumOrder;
+		}
+
+		[TestMethod]
+		public void Division_EvaluateEqual()
+		{
+			Component_Order oldCompOrder = Expression.ComponentOrder;
+			Product_Order oldProdOrder = Expression.ProductOrder;
+			Sum_Order oldSumOrder = Expression.SumOrder;
+			Expression.ComponentOrder = Component_Order.RCL;
+			Expression.ProductOrder = Product_Order._2SC;
+			Expression.SumOrder = Sum_Order.S2_S;
+			Expression R = new ComponentExpression("R");
+			Expression C = new ComponentExpression("C");
+			Expression L = new ComponentExpression("L");
+			Expression s = Expression.S;
+			Division exp1 = (s * C * (1 / R + 1 / (s * L)) * 1 / (s * C) + s * C * (1 / R + 1 / (s * L)) * 1 / (1 / R + 1 / (s * L))) / (s * C * (1 / R + 1 / (s * L)));
+			string expected = "(s^2*R*C*L+s*L+R)/(s^2*C*L+s*R*C)";
+			Expression exp2 = exp1.ToStandardForm();
+
+			Assert.AreEqual(exp1, exp2);
+			Assert.AreEqual(exp2.Evaluate(), expected);
+
+			Expression.ComponentOrder = oldCompOrder;
+			Expression.ProductOrder = oldProdOrder;
+			Expression.SumOrder = oldSumOrder;
+		}
+
+		[TestMethod]
 		public void SumSortSummands_EvaluateEqual()
 		{
 			Component C2 = new Capacitor("C2");
@@ -201,6 +248,32 @@ namespace FilterDesigner.UnitTests
 			exp = exp.ToStandardForm();
 
 			Assert.AreEqual(exp.Evaluate(), expected);
+		}
+
+		[TestMethod]
+		public void ToCommodDen_EvaluateEqual()
+		{
+			Component_Order oldCompOrder = Expression.ComponentOrder;
+			Product_Order oldProdOrder = Expression.ProductOrder;
+			Sum_Order oldSumOrder = Expression.SumOrder;
+			Expression.ComponentOrder = Component_Order.RCL;
+			Expression.ProductOrder = Product_Order._2SC;
+			Expression.SumOrder = Sum_Order.S2_S;
+			Expression R = new ComponentExpression("R");
+			Expression C = new ComponentExpression("C");
+			Expression L = new ComponentExpression("L");
+			Expression s = Expression.S;
+			Expression exp1 = L + R / s + 1 / (s * C);
+			Expression exp2 = (s * C * L + R * C + 1) / (s * C);
+
+			Expression exp3 = exp1.ToCommonDenominator();
+			exp3 = exp3.ToStandardForm();
+
+			Assert.AreEqual(exp3.Evaluate(), exp2.Evaluate());
+
+			Expression.ComponentOrder = oldCompOrder;
+			Expression.ProductOrder = oldProdOrder;
+			Expression.SumOrder = oldSumOrder;
 		}
 
 		[TestMethod]

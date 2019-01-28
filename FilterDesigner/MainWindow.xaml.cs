@@ -16,12 +16,14 @@ using System.Windows.Threading;
 namespace FilterDesigner
 {
 	// TODO:
-	// Add Dialog to change names & values
-	// Split line => drag immediately
+	// Highlight branchpoints, add selection of input/output for transfer function
+	// Add plot to OutputWindow (bode)
+	// Add copy to clipboard button in OutputWindow
 	// Merge branchpoints, delete lines and split nets
+	// 
+	// All objects snap to a grid
 	// GetSummands() deep search with recursion?
 	// Simplify R1*R1 => R1^2
-	// Add output in LateX
 	// Add window to plot transfer function, change values on the fly
 
 	public partial class MainWindow : Window
@@ -469,29 +471,36 @@ namespace FilterDesigner
 
 		private void BtnTest_Click(object sender, RoutedEventArgs e)
 		{
-			if(cbxNet1.SelectedItem == null || cbxNet2.SelectedItem == null)
-				return;
-			if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+			if(cbxNet1.SelectedItem != null && cbxNet2.SelectedItem != null)
 			{
-				tbxResult.Text = "0";
-				return;
-			}
+				if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+				{
+					tbxResult.Text = "0";
+					return;
+				}
 
-			List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
-			Expression exp = GetExpressionOfPaths(paths);
-			exp = exp.ToCommonDenominator();
-			exp = exp.ToStandardForm();
-			tbxResult.Text = exp.Evaluate();
+				List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
+				Expression exp = GetExpressionOfPaths(paths);
+				exp = exp.ToCommonDenominator();
+				exp = exp.ToStandardForm();
+				tbxResult.Text = exp.Evaluate();
+			}
 
 			Expression transferFunction = GetTransferFunction
 			(
 				allNets.First(n => n.Name == "$0"),
-				allNets.First(n => n.Name == "$3"),
 				allNets.First(n => n.Name == "$2"),
-				allNets.First(n => n.Name == "$3")
+				allNets.First(n => n.Name == "$1"),
+				allNets.First(n => n.Name == "$2")
 			);
 			if(transferFunction != null)
-				MessageBox.Show(transferFunction.ToCommonDenominator().ToStandardForm().Evaluate(), "Result:");
+			{
+				OutputWindow output = new OutputWindow(transferFunction)
+				{
+					Owner = this
+				};
+				output.Show();
+			}
 		}
 
 		public void DrawAll()
@@ -577,7 +586,7 @@ namespace FilterDesigner
 
 		private void PlaceComponent(object sender, MouseButtonEventArgs e)
 		{
-			if(!Net.wireAttached && !clickedComponent) //?
+			if(!Net.wireAttached && !clickedComponent)
 			{
 				e.Handled = true;
 				Point mouse = Mouse.GetPosition(canvas);
@@ -600,7 +609,6 @@ namespace FilterDesigner
 				{
 					newComponent.Rotation = AddComponentRotation;
 					newComponent.Draw();
-					//Keyboard.Focus(newComponent.VisualGroup);	// Doesn't work
 				}
 			}
 		}
@@ -1642,7 +1650,6 @@ namespace FilterDesigner
 			List<(Branchpoint, NetPort)> oldListBps = connections[oldComponent];
 			connections.Remove(oldComponent);
 			connections[newComponent] = oldListBps;
-			// TODO: Update branchpoint positions?
 		}
 
 		public static void CancelCurrentLine()
@@ -1733,6 +1740,7 @@ namespace FilterDesigner
 			newBranchPoint.wires.Add(sender, LineEndPoint.Point2);
 
 			this.Branchpoint_Connect(newBranchPoint);
+			newBranchPoint.Branchpoint_MouseDown(newBranchPoint.connectionMarker, e);
 		}
 
 		public void Wire_RightClick(Line sender, MouseButtonEventArgs e)
@@ -1921,6 +1929,39 @@ namespace FilterDesigner
 			}
 		}
 
+		protected bool nameVisible = true;
+		public bool NameVisible
+		{
+			get
+			{
+				return nameVisible;
+			}
+			set
+			{
+				nameVisible = value;
+				if(nameText != null)
+				{
+					nameText.Visibility = nameVisible ? Visibility.Visible : Visibility.Collapsed;
+				}
+			}
+		}
+		protected bool valueVisible = false;
+		public bool ValueVisible
+		{
+			get
+			{
+				return valueVisible;
+			}
+			set
+			{
+				valueVisible = value;
+				if(valueText != null)
+				{
+					valueText.Visibility = valueVisible ? Visibility.Visible : Visibility.Collapsed;
+				}
+			}
+		}
+
 		public static double WireThickness = 3;
 		public static Brush LeadColor = Brushes.Black;
 		public ComponentRotation Rotation;
@@ -1931,8 +1972,8 @@ namespace FilterDesigner
 		public abstract double PortB_MarginY { get; }   //
 
 		private static Component movedComponent;
-		private static double moveStartX;       // Start position of movedComponent
-		private static double moveStartY;       //
+		private static double moveStartX;				// Start position of movedComponent
+		private static double moveStartY;				//
 		private static double mousedown_x = -1;
 		private static double mousedown_y = -1;
 
@@ -1942,6 +1983,7 @@ namespace FilterDesigner
 
 		public BorderedCanvas VisualGroup;
 		protected TextBlock nameText;
+		protected TextBlock valueText;
 
 		public ConnectionPort PortA { get; protected set; }
 		public ConnectionPort PortB { get; protected set; }
@@ -2256,11 +2298,11 @@ namespace FilterDesigner
 			MainWindow.clickedComponent = false;
 			ComponentDialog dialog;
 			if(component is Resistor)
-				dialog = new ComponentDialog(Name, (component as Resistor).Resistance, MainWindow.ComponentType.Resistor);
+				dialog = new ComponentDialog(Name, (component as Resistor).Resistance, MainWindow.ComponentType.Resistor, component.nameVisible, component.valueVisible);
 			else if(component is Capacitor)
-				dialog = new ComponentDialog(Name, (component as Capacitor).Capacitance, MainWindow.ComponentType.Capacitor);
+				dialog = new ComponentDialog(Name, (component as Capacitor).Capacitance, MainWindow.ComponentType.Capacitor, component.nameVisible, component.valueVisible);
 			else // if(component is Inductor)
-				dialog = new ComponentDialog(Name, (component as Inductor).Inductance, MainWindow.ComponentType.Inductor);
+				dialog = new ComponentDialog(Name, (component as Inductor).Inductance, MainWindow.ComponentType.Inductor, component.nameVisible, component.valueVisible);
 			dialog.Owner = mainWindow;
 			if(dialog.ShowDialog() ?? false)
 			{
@@ -2283,16 +2325,17 @@ namespace FilterDesigner
 					newComponent.NetA = component.NetA;
 					newComponent.NetB = component.NetB;
 					newComponent.Rotation = component.Rotation;
+					newComponent.NameVisible = dialog.ResultShowName;
+					newComponent.ValueVisible = dialog.ResultShowValue;
 					mainWindow.ReplaceComponent(component, newComponent);
 				}
 				else
 				{
 					component.Name = dialog.ResultName;
 					dialog.ChangeComponentValue(component);
+					component.NameVisible = dialog.ResultShowName;
+					component.ValueVisible = dialog.ResultShowValue;
 				}
-			}
-			else
-			{
 			}
 		}
 
@@ -2364,7 +2407,22 @@ namespace FilterDesigner
 
 	public class Resistor : Component
 	{
-		public double Resistance { get; set; }
+		private double resistance;
+		public double Resistance
+		{
+			get
+			{
+				return resistance;
+			}
+			set
+			{
+				resistance = value;
+				if(valueText != null)
+				{
+					valueText.Text = $"{resistance} \u03A9";
+				}
+			}
+		}
 
 		public override double PortA_MarginX
 		{
@@ -2475,7 +2533,7 @@ namespace FilterDesigner
 
 		public override string ExportComponent()
 		{
-			return $"R;{Name};{Resistance}" + base.ExportComponent();
+			return $"R;{Name};{resistance}" + base.ExportComponent();
 		}
 
 		public override string GetValueStr()
@@ -2509,17 +2567,23 @@ namespace FilterDesigner
 
 			nameText = new TextBlock
 			{
-				Text = Name
+				Text = Name,
+				Visibility = nameVisible ? Visibility.Visible : Visibility.Collapsed
 			};
-
-			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
-			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
+			valueText = new TextBlock
+			{
+				Text = $"{resistance} \u03A9",
+				Visibility = valueVisible ? Visibility.Visible : Visibility.Collapsed
+			};
+			
 			Canvas.SetLeft(symbol, 22);
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 15);
-			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 40);   // -20
-			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 15);   // -25
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 22);
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 28);
+			Canvas.SetLeft(valueText, VisualGroup.Width / 2 - 22);
+			Canvas.SetTop(valueText, VisualGroup.Height / 2 + 12);
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + PortB_MarginX - ConnectionPort.Radius);
@@ -2527,6 +2591,7 @@ namespace FilterDesigner
 			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(symbol);
 			VisualGroup.Children.Add(nameText);
+			VisualGroup.Children.Add(valueText);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);
@@ -2551,6 +2616,10 @@ namespace FilterDesigner
 				Canvas.SetTop(symbol, 5);
 				Canvas.SetLeft(leads, 2);
 				Canvas.SetTop(leads, 15);
+				Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 22);
+				Canvas.SetTop(nameText, VisualGroup.Height / 2 - 28);
+				Canvas.SetLeft(valueText, VisualGroup.Width / 2 - 22);
+				Canvas.SetTop(valueText, VisualGroup.Height / 2 + 12);
 			}
 			else
 			{
@@ -2566,6 +2635,10 @@ namespace FilterDesigner
 				Canvas.SetTop(symbol, 22);
 				Canvas.SetLeft(leads, 15);
 				Canvas.SetTop(leads, 2);
+				Canvas.SetLeft(nameText, VisualGroup.Width / 2 + 15);
+				Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
+				Canvas.SetLeft(valueText, VisualGroup.Width / 2 + 16);
+				Canvas.SetTop(valueText, VisualGroup.Height / 2 + 7);
 			}
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
@@ -2579,7 +2652,7 @@ namespace FilterDesigner
 		{
 			string message = "";
 			message += $"Name: {Name}\n";
-			message += $"Value: {Resistance} Ohm\n";
+			message += $"Resistance: {resistance} \u03A9\n";
 			message += $"NetA: {NetA?.Name ?? "null"}\n";
 			message += $"NetB: {NetB?.Name ?? "null"}\n";
 			message += $"X: {X}, Y: {Y}";
@@ -2593,7 +2666,7 @@ namespace FilterDesigner
 
 		public override Impedance GetImpedance(double frequency)
 		{
-			return new Impedance(Resistance);
+			return new Impedance(resistance);
 		}
 
 		public override Expression GetExpression()
@@ -2604,7 +2677,22 @@ namespace FilterDesigner
 
 	public class Inductor : Component
 	{
-		public double Inductance { get; set; }
+		private double inductance;
+		public double Inductance
+		{
+			get
+			{
+				return inductance;
+			}
+			set
+			{
+				inductance = value;
+				if(valueText != null)
+				{
+					valueText.Text = $"{inductance} H";
+				}
+			}
+		}
 
 		public override double PortA_MarginX
 		{
@@ -2715,7 +2803,7 @@ namespace FilterDesigner
 
 		public override string ExportComponent()
 		{
-			return $"L;{Name};{Inductance}" + base.ExportComponent();
+			return $"L;{Name};{inductance}" + base.ExportComponent();
 		}
 
 		public override string GetValueStr()
@@ -2749,17 +2837,23 @@ namespace FilterDesigner
 
 			nameText = new TextBlock
 			{
-				Text = Name
+				Text = Name,
+				Visibility = nameVisible ? Visibility.Visible : Visibility.Collapsed
 			};
-
-			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
-			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
+			valueText = new TextBlock
+			{
+				Text = $"{inductance} H",
+				Visibility = valueVisible ? Visibility.Visible : Visibility.Collapsed
+			};
+			
 			Canvas.SetLeft(symbol, 22);
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 15);
-			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
-			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 22);
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 28);
+			Canvas.SetLeft(valueText, VisualGroup.Width / 2 - 22);
+			Canvas.SetTop(valueText, VisualGroup.Height / 2 + 12);
 			Canvas.SetLeft(PortA, X + ComponentMargins.Inductor_PortA_X - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + ComponentMargins.Inductor_PortA_Y - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Inductor_PortB_X - ConnectionPort.Radius);
@@ -2767,6 +2861,7 @@ namespace FilterDesigner
 			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(symbol);
 			VisualGroup.Children.Add(nameText);
+			VisualGroup.Children.Add(valueText);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);
@@ -2791,6 +2886,10 @@ namespace FilterDesigner
 				Canvas.SetTop(symbol, 5);
 				Canvas.SetLeft(leads, 2);
 				Canvas.SetTop(leads, 15);
+				Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 22);
+				Canvas.SetTop(nameText, VisualGroup.Height / 2 - 28);
+				Canvas.SetLeft(valueText, VisualGroup.Width / 2 - 22);
+				Canvas.SetTop(valueText, VisualGroup.Height / 2 + 12);
 
 			}
 			else
@@ -2807,6 +2906,10 @@ namespace FilterDesigner
 				Canvas.SetTop(symbol, 22);
 				Canvas.SetLeft(leads, 15);
 				Canvas.SetTop(leads, 2);
+				Canvas.SetLeft(nameText, VisualGroup.Width / 2 + 15);
+				Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
+				Canvas.SetLeft(valueText, VisualGroup.Width / 2 + 16);
+				Canvas.SetTop(valueText, VisualGroup.Height / 2 + 7);
 			}
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
@@ -2820,7 +2923,7 @@ namespace FilterDesigner
 		{
 			string message = "";
 			message += $"Name: {Name}\n";
-			message += $"Value: {Inductance}H\n";
+			message += $"Inductance: {inductance} H\n";
 			message += $"NetA: {NetA?.Name ?? "null"}\n";
 			message += $"NetB: {NetB?.Name ?? "null"}\n";
 			message += $"X: {X}, Y: {Y}";
@@ -2829,7 +2932,7 @@ namespace FilterDesigner
 
 		public override Impedance GetImpedance(double frequency)
 		{
-			return new Impedance(0, 2 * Math.PI * frequency * Inductance);
+			return new Impedance(0, 2 * Math.PI * frequency * inductance);
 		}
 
 		public override Expression GetExpression()
@@ -2840,7 +2943,22 @@ namespace FilterDesigner
 
 	public class Capacitor : Component
 	{
-		public double Capacitance { get; set; }
+		private double capacitance;
+		public double Capacitance
+		{
+			get
+			{
+				return capacitance;
+			}
+			set
+			{
+				capacitance = value;
+				if(valueText != null)
+				{
+					valueText.Text = $"{capacitance} F";
+				}
+			}
+		}
 
 		public override double PortA_MarginX
 		{
@@ -2960,7 +3078,7 @@ namespace FilterDesigner
 
 		public override string ExportComponent()
 		{
-			return $"C;{Name};{Capacitance}" + base.ExportComponent();
+			return $"C;{Name};{capacitance}" + base.ExportComponent();
 		}
 
 		public override string GetValueStr()
@@ -2997,7 +3115,13 @@ namespace FilterDesigner
 			};
 			nameText = new TextBlock
 			{
-				Text = Name
+				Text = Name,
+				Visibility = nameVisible ? Visibility.Visible : Visibility.Collapsed
+			};
+			valueText = new TextBlock
+			{
+				Text = $"{capacitance} F",
+				Visibility = valueVisible ? Visibility.Visible : Visibility.Collapsed
 			};
 
 			RenderOptions.SetEdgeMode(border, EdgeMode.Aliased);
@@ -3005,14 +3129,14 @@ namespace FilterDesigner
 			RenderOptions.SetEdgeMode(leads, EdgeMode.Aliased);
 
 			border.Child = capContent;
-			//Canvas.SetLeft(VisualGroup, X-VisualGroup.Width/2);
-			//Canvas.SetTop(VisualGroup, Y-VisualGroup.Height/2);
 			Canvas.SetLeft(border, 22);
 			Canvas.SetTop(border, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 25);
-			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
-			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 25);
+			Canvas.SetLeft(nameText, VisualGroup.Width/2 - 20);
+			Canvas.SetTop(nameText, VisualGroup.Height/2 - 39);
+			Canvas.SetLeft(valueText, VisualGroup.Width/2 - 20);
+			Canvas.SetTop(valueText, VisualGroup.Height/2 + 22);
 			Canvas.SetLeft(PortA, X + ComponentMargins.Capacitor_PortA_X - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + ComponentMargins.Capacitor_PortA_Y - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Capacitor_PortB_X - ConnectionPort.Radius);
@@ -3025,6 +3149,7 @@ namespace FilterDesigner
 			VisualGroup.Children.Add(border);
 			VisualGroup.Children.Add(leads);
 			VisualGroup.Children.Add(nameText);
+			VisualGroup.Children.Add(valueText);
 			baseCanvas.Children.Add(PortA);
 			baseCanvas.Children.Add(PortB);
 			baseCanvas.Children.Add(VisualGroup);
@@ -3048,10 +3173,14 @@ namespace FilterDesigner
 				leads.X2 = 50;
 				leads.Y1 = 0;
 				leads.Y2 = 0;
-				Canvas.SetLeft(border, 22); //?
-				Canvas.SetTop(border, 5);   //?
-				Canvas.SetLeft(leads, 2);   //?
-				Canvas.SetTop(leads, 25);   //?
+				Canvas.SetLeft(border, 22);
+				Canvas.SetTop(border, 5);
+				Canvas.SetLeft(leads, 2);
+				Canvas.SetTop(leads, 25);
+				Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
+				Canvas.SetTop(nameText, VisualGroup.Height / 2 - 39);
+				Canvas.SetLeft(valueText, VisualGroup.Width / 2 - 20);
+				Canvas.SetTop(valueText, VisualGroup.Height / 2 + 22);
 			}
 			else
 			{
@@ -3066,10 +3195,14 @@ namespace FilterDesigner
 				leads.X2 = 0;
 				leads.Y1 = 0;
 				leads.Y2 = 50;
-				Canvas.SetLeft(border, 5);  //?
-				Canvas.SetTop(border, 22);  //?
-				Canvas.SetLeft(leads, 25);  //?
-				Canvas.SetTop(leads, 2);    //?
+				Canvas.SetLeft(border, 5);
+				Canvas.SetTop(border, 22);
+				Canvas.SetLeft(leads, 25);
+				Canvas.SetTop(leads, 2);
+				Canvas.SetLeft(nameText, VisualGroup.Width / 2 + 26);
+				Canvas.SetTop(nameText, VisualGroup.Height / 2 - 24);
+				Canvas.SetLeft(valueText, VisualGroup.Width / 2 + 26);
+				Canvas.SetTop(valueText, VisualGroup.Height / 2 + 7);
 			}
 			Canvas.SetLeft(PortA, X + PortA_MarginX - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + PortA_MarginY - ConnectionPort.Radius);
@@ -3083,7 +3216,7 @@ namespace FilterDesigner
 		{
 			string message = "";
 			message += $"Name: {Name}\n";
-			message += $"Value: {Capacitance}F\n";
+			message += $"Capacitance: {capacitance} F\n";
 			message += $"NetA: {NetA?.Name ?? "null"}\n";
 			message += $"NetB: {NetB?.Name ?? "null"}\n";
 			message += $"X: {X}, Y: {Y}";
