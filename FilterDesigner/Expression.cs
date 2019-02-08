@@ -149,6 +149,9 @@ namespace FilterDesigner
 			//	return false;
 			//}
 			//return value.Equals(other.ToString());
+			
+			// Maybe Immediately deal with contained Fractions? (To speed up the comparison) 
+
 			exp1 = exp1.Unpack();
 			exp2 = exp2.Unpack();
 			if(exp1 is Product)
@@ -586,10 +589,19 @@ namespace FilterDesigner
 
 		public override Expression RemoveChild(Expression child)
 		{
-			if(Equals(child))
-				return 0;
-			Sum copy = Copy() as Sum;
-			copy.Summands.Remove(child);
+			//Sum copy = Copy() as Sum;
+			Sum copy = Expand() as Sum; // Causes Problems
+			if(child is Sum && !Summands.Contains(child))
+			{
+				foreach(Expression subChild in (child as Sum).Summands)
+				{
+					copy.Summands.Remove(subChild);
+				}
+			}
+			else
+			{
+				copy.Summands.Remove(child);
+			}
 			return copy;
 		}
 
@@ -659,8 +671,9 @@ namespace FilterDesigner
 				}
 				while(copy.Summands.Any(s => s is Sum))
 				{
-					Sum sum = copy.Summands.First(s => s is Sum) as Sum;
-					copy = copy.RemoveChild(sum) as Sum;
+					int index = copy.Summands.FindIndex(s => s is Sum);
+					Sum sum = copy.Summands[index] as Sum;
+					copy.Summands.RemoveAt(index);
 					copy = copy.Merge(sum) as Sum;
 				}
 				List<Product> lp = copy.Summands.Where(s => s is Product && !s.IsFinal()).Cast<Product>().ToList();
