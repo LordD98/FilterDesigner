@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace FilterDesigner.UnitTests
@@ -213,6 +215,29 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
+		public void DivisionReduceCommonFactors()
+		{
+			Component_Order oldCompOrder = Expression.ComponentOrder;
+			Product_Order oldProdOrder = Expression.ProductOrder;
+			Sum_Order oldSumOrder = Expression.SumOrder;
+			Expression.ComponentOrder = Component_Order.RCL;
+			Expression.ProductOrder = Product_Order._2SC;
+			Expression.SumOrder = Sum_Order.S2_S;
+			Expression C = new ComponentExpression("C");
+			Expression s = Expression.S;
+			Expression s3 = new S_Block(3);
+			Expression s6 = new S_Block(6);
+			Expression exp1 = (s6 * C + s3 * C * C)/(s * s * C * C * C * s3 + s * s6 * C * C * C);
+			Expression exp2 = exp1.ToStandardForm();
+			
+			Assert.AreEqual(exp2.Evaluate(), "(s^3+C)/(s^4*C*C+s^2*C*C)");
+
+			Expression.ComponentOrder = oldCompOrder;
+			Expression.ProductOrder = oldProdOrder;
+			Expression.SumOrder = oldSumOrder;
+		}
+
+		[TestMethod]
 		public void Division_EvaluateEqual()
 		{
 			Component_Order oldCompOrder = Expression.ComponentOrder;
@@ -240,9 +265,9 @@ namespace FilterDesigner.UnitTests
 		[TestMethod]
 		public void SumSortSummands_EvaluateEqual()
 		{
-			Component C2 = new Capacitor("C2");
 			Expression s = Expression.S;
-			Expression exp = 1 + s + s*4*s*s + 3*s + s*1/C2.GetExpression()*s;
+			Expression C2 = new ComponentExpression("C2");
+			Expression exp = 1 + s + s*4*s*s + 3*s + s*(s*C2)*s;
 			string expected = "s^3*(4+C2)+4*s+1";
 
 			exp = exp.ToStandardForm();
@@ -372,6 +397,29 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
+		public void Contains_S_ReturnsTrue()
+		{
+			S_Block s = Expression.S;
+			ComponentExpression R = new ComponentExpression("R");
+			Expression exp1 = (s ^ 3) * (3*(s ^ 3) + 2*s) + s * (5*(s^3) + 7*s);
+			Expression exp2 = 14 + R * 3 + 3*(2+R*(1+(s^2)));
+			
+			bool result1 = exp1.Contains(s);
+			bool result2 = exp1.Contains(p => p is S_Block);
+			bool result3 = exp1.DeepContains(s);
+			bool result4 = exp1.DeepContains(p => p is S_Block);
+			bool result5 = exp2.Contains(s);
+			bool result6 = exp2.DeepContains(s);
+
+			Assert.IsFalse(result1);
+			Assert.IsFalse(result2);
+			Assert.IsTrue(result3);
+			Assert.IsTrue(result4);
+			Assert.IsFalse(result5);
+			Assert.IsTrue(result6);
+		}
+
+		[TestMethod]
 		public void IsConst_ReturnsTrue()
 		{
 			Expression s = Expression.S;
@@ -401,33 +449,84 @@ namespace FilterDesigner.UnitTests
 		[TestMethod]
 		public void FactorOut_Product_AreEqual()
 		{
-			Expression s = Expression.S;
+			S_Block s = Expression.S;
 			Product p1 = s * s * 4 * s * s as Product;
 			Product p2 = 2 * s * 5 * s * s as Product;
+			Product p3 = (s ^ 2) * s as Product;
+			Product p4 = s * (s ^ 2) as Product;
 			Expression expected1 = 4 * s;
 			Expression expected2 = 10;
+			Expression expected3 = s;
+			Expression expected4 = s;
 
-			Expression result1 = p1.FactorOut(new S_Block(3));
-			Expression result2 = p2.FactorOut(new S_Block(3));
+			Expression result1 = p1.FactorOut(s ^ 3);
+			Expression result2 = p2.FactorOut(s ^ 3);
+			Expression result3 = p3.FactorOut(s ^ 2);
+			Expression result4 = p4.FactorOut(s ^ 2);
 
-			Assert.IsTrue(expected1.Equals(result1));
-			Assert.IsTrue(expected2.Equals(result2));
+			Assert.AreEqual(expected1, result1);
+			Assert.AreEqual(expected2, result2);
+			Assert.AreEqual(expected3, result3);
+			Assert.AreEqual(expected4, result4);
 		}
 
 		[TestMethod]
 		public void FactorOut_Sum_AreEqual()
 		{
-			Expression s = Expression.S;
-			Sum s1 = s * s + s * 4 * s * s;
+			S_Block s = Expression.S;
+			Expression C1 = new ComponentExpression("C1");
+			Expression C2 = new ComponentExpression("C2");
+			Sum s1 = s * s + s * 4 * (s^2);
 			Sum s2 = 2 * s * s + 5 * s * s;
+			Sum s3 = C2 * C1 + C2 * C2;
+			Sum s4 = (s ^ 4) * 4 * C2 * C1 * C2 + (s ^ 2) * (C2 * C1 + C2 * C2);
+			Product p1 = (s ^ 2) * s3 as Product;
 			Expression expected1 = 1 + 4 * s;
 			Expression expected2 = 7;
+			Expression expected3 = C1 + C2;
+			Expression expected4 = (s ^ 2) * (C1 + C2);
+			Expression expected5 = (s ^ 4) * 4 * C1 * C2 + (s ^ 2) * (C1 + C2);
 
-			Expression result1 = s1.FactorOut(new S_Block(2));
-			Expression result2 = s2.FactorOut(new S_Block(2));
+			Expression result1 = s1.FactorOut(s^2);
+			Expression result2 = s2.FactorOut(s^2);
+			Expression result3 = s3.FactorOut(new ComponentExpression("C2"));
+			Expression result4 = p1.FactorOut(new ComponentExpression("C2"));
+			Expression result5 = s4.FactorOut(new ComponentExpression("C2"));
 
 			Assert.AreEqual(expected1, result1);
 			Assert.AreEqual(expected2, result2);
+			Assert.AreEqual(expected3, result3);
+			Assert.AreEqual(expected4, result4);
+			Assert.AreEqual(expected5, result5);
+		}
+
+		[TestMethod]
+		public void GetCommonFactors_Sum_AreEqual()
+		{
+			S_Block s = Expression.S;
+			Expression C = new ComponentExpression("C");
+			Sum s1 = s * s * 4 * s * s + s * 2 * s as Sum;
+			Sum s2 = 2 * s * C * s + C * C *  C * s as Sum;
+			Sum s3 = new S_Block(3) + C * new S_Block(2) as Sum;
+			Sum s4 = (s ^ 6) * C + (s ^ 3) * C * C;
+			Sum s5 = (s ^ 7) * C * C * C + (s ^ 5) * C * C;
+			List<Expression> expected1 = new List<Expression>() { s*s };
+			List<Expression> expected2 = new List<Expression>() { s, C };
+			List<Expression> expected3 = new List<Expression>() { new S_Block(2) };
+			List<Expression> expected4 = new List<Expression>() { s^3, C };
+			List<Expression> expected5 = new List<Expression>() { s^3, C };
+
+			List<Expression> actual1 = s1.GetCommonFactors();
+			List<Expression> actual2 = s2.GetCommonFactors();
+			List<Expression> actual3 = s3.GetCommonFactors();
+			List<Expression> actual4 = s4.GetCommonFactors();
+			List<Expression> actual5 = s5.GetCommonFactors(actual4);
+
+			Assert.IsTrue(expected1.All(e => actual1.Count(f => f.Equals(e)) == expected1.Count(f => f.Equals(e))));
+			Assert.IsTrue(expected2.All(e => actual2.Count(f => f.Equals(e)) == expected2.Count(f => f.Equals(e))));
+			Assert.IsTrue(expected3.All(e => actual3.Count(f => f.Equals(e)) == expected3.Count(f => f.Equals(e))));
+			Assert.IsTrue(expected4.All(e => actual4.Count(f => f.Equals(e)) == expected4.Count(f => f.Equals(e))));
+			Assert.IsTrue(expected5.All(e => actual5.Count(f => f.Equals(e)) == expected5.Count(f => f.Equals(e))));
 		}
 
 		[TestMethod]
@@ -465,12 +564,12 @@ namespace FilterDesigner.UnitTests
 		public void ComponentCompare_Test()
 		{
 			Component_Order oldOrder = Expression.ComponentOrder;
-			Expression R1 = new ComponentExpression(new Resistor("R1"));
-			Expression R2 = new ComponentExpression(new Resistor("R2"));
-			Expression C1 = new ComponentExpression(new Capacitor("C1"));
-			Expression C2 = new ComponentExpression(new Capacitor("C2"));
-			Expression L1 = new ComponentExpression(new Inductor("L1"));
-			Expression L2 = new ComponentExpression(new Inductor("L2"));
+			Expression R1 = new ComponentExpression("R1");
+			Expression R2 = new ComponentExpression("R2");
+			Expression C1 = new ComponentExpression("C1");
+			Expression C2 = new ComponentExpression("C2");
+			Expression L1 = new ComponentExpression("L1");
+			Expression L2 = new ComponentExpression("L2");
 
 			Assert.AreEqual(Expression.Compare(R1, R2), 0);
 			Assert.AreEqual(Expression.Compare(C1, C2), 0);
@@ -486,6 +585,28 @@ namespace FilterDesigner.UnitTests
 			Assert.AreEqual(Expression.Compare(L1, C1), -1);
 
 			Expression.ComponentOrder = oldOrder;
+		}
+
+		[TestMethod]
+		public void PolynomialDivision_AreEqual()
+		{
+			S_Block s = Expression.S;
+			ComponentExpression L1 = new ComponentExpression("L1");
+			ComponentExpression C1 = new ComponentExpression("C1");
+			ComponentExpression C2 = new ComponentExpression("C2");
+			Sum s1 = (s ^ 3) * L1 * C1 * C2 + s * (C1 + C2) as Sum;
+			Sum s2 = (s ^ 2) + s * (C1 + C2) + C1 * C2 as Sum;
+			Sum expected1 = (s ^ 2) * L1 * C1 * C2 + C1 + C2;
+			Expression expected2 = s;
+			Sum expected3 = s + C2 as Sum;
+
+			Sum result1 = Expression.PolynomialDivision(s1, new Sum(s)) as Sum;
+			Expression result2 = Expression.PolynomialDivision(s1, expected1);
+			Sum result3 = Expression.PolynomialDivision(s2, s + C1) as Sum;
+
+			Assert.AreEqual(result1, expected1);
+			Assert.AreEqual(result2, expected2);
+			Assert.AreEqual(result3, expected3);
 		}
 	}
 }

@@ -24,9 +24,17 @@ namespace FilterDesigner
 
 		public OutputWindow(Expression function)
 		{
-			Function = function.ToCommonDenominator().ToStandardForm();
+			Function = function.ToCommonDenominator();
+			Function = Function.ToStandardForm();
 			InitializeComponent();
-			OutputExpression.Formula = Function.EvaluateLaTeX();
+			if(!Function.IsConst() || !double.IsPositiveInfinity((Function as ConstExpression).Value))
+			{
+				OutputExpression.Formula = Function.EvaluateLaTeX();
+			}
+			else
+			{
+				OutputExpression.Formula = @"\infty";
+			}
 		}
 	}
 }

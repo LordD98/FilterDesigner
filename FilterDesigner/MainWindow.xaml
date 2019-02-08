@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FilterDesigner"
+		xmlns:LaTeX="clr-namespace:WpfMath.Controls;assembly=WpfMath"
         mc:Ignorable="d"
         Title="Filter Designer" 
 		Height="500" Width="900" 
@@ -42,7 +43,7 @@
 				ClipToBounds="True" 
 				Background="#FFFAFAFA" Grid.Row="1">
 		</Canvas>
-		<Grid x:Name="Toolbox" Grid.Column="1" Margin="0,5,5,0" Grid.ColumnSpan="2" Grid.Row="1">
+		<Grid x:Name="Toolbox" Grid.Column="1" Margin="0,5,5,0" Grid.ColumnSpan="2" Grid.Row="1" SnapsToDevicePixels="True">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="10"/>
 				<ColumnDefinition Width="95"/>
@@ -53,6 +54,8 @@
 				<RowDefinition/>
 				<RowDefinition/>
 				<RowDefinition Height="2*"/>
+				<RowDefinition Height="30"/>
+				<RowDefinition Height="30"/>
 				<RowDefinition Height="30"/>
 				<RowDefinition Height="30"/>
 				<RowDefinition Height="30"/>
@@ -142,7 +145,7 @@
 						SnapsToDevicePixels = "true" Width="80"/>
 				</Canvas>
 			</Button>
-			
+
 			<Button x:Name="BtnRotateLeft" Content="Rotate&#xa;Left" Grid.Column="2" Grid.Row="0" Click="BtnRotateLeft_Click"/>
 			<Button x:Name="BtnRotateRight" Content="Rotate&#xa;Right" Grid.Column="2" Grid.Row="1" Click="BtnRotateRight_Click"/>
 			<Polygon Name="ComponentRotationIndicator" HorizontalAlignment="Center" VerticalAlignment="Center" Points="0,21 25,21 25,31 40,16 25,1 25,11 0,11" Stroke="Black" Fill="Lime" Grid.Column="2" Grid.Row="2" RenderTransformOrigin="0.5,0.5">
@@ -157,9 +160,45 @@
 			</Polygon>
 
 			<TextBox x:Name="tbxResult" Grid.Column="1" Margin="5,5,0,0" Grid.Row="3" Grid.ColumnSpan="2" TextWrapping="Wrap" SnapsToDevicePixels="True" Focusable="True" IsReadOnly="True"/>
-			<ComboBox x:Name="cbxNet1" Margin="5,5,0,5" Grid.Column="1" Grid.Row="4" Grid.ColumnSpan="2"/>
-			<ComboBox x:Name="cbxNet2" Margin="5,5,0,5" Grid.Column="1" Grid.Row="5" Grid.ColumnSpan="2"/>
-			<Button x:Name="btnTest" Content="Get Impedance" Margin="5,5,0,5" Click="BtnTest_Click" Grid.Column="1" Grid.Row="6" Grid.ColumnSpan="2"/>
+			<ComboBox x:Name="cmbOutputMode" Margin="5,5,0,5" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" SelectionChanged="CmbOutputMode_SelectionChanged">
+				<ComboBoxItem Content="Transfer function"/>
+				<ComboBoxItem Content="Impedance"/>
+				<ComboBoxItem Content="Admittance"/>
+			</ComboBox>
+			<Grid x:Name="GrdOutputTransferFct" Grid.Column="1" Grid.Row="5" Grid.RowSpan="3" Grid.ColumnSpan="2" SnapsToDevicePixels="True" Visibility="Visible">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition/>
+					<ColumnDefinition/>
+				</Grid.ColumnDefinitions>
+				<Grid.RowDefinitions>
+					<RowDefinition/>
+					<RowDefinition/>
+					<RowDefinition/>
+				</Grid.RowDefinitions>
+				<ComboBox x:Name="cmbTransferNetA1" Margin="5,5,0,5" Grid.Column="0" SnapsToDevicePixels="True"/>
+				<ComboBox x:Name="cmbTransferNetA2" Margin="5,5,0,5" Grid.Column="0" Grid.Row="2" SnapsToDevicePixels="True"/>
+				<ComboBox x:Name="cmbTransferNetB1" Margin="5,5,0,5" Grid.Column="1" SnapsToDevicePixels="True"/>
+				<ComboBox x:Name="cmbTransferNetB2" Margin="5,5,0,5" Grid.Column="1" Grid.Row="2" SnapsToDevicePixels="True"/>
+				<LaTeX:FormulaControl Formula="U_{in} \downarrow" Grid.Column="0" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Scale="27" />
+				<LaTeX:FormulaControl Formula="U_{out} \downarrow" Grid.Column="1" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Scale="27" />
+			</Grid>
+			<Grid x:Name="GrdOutputImpedance" Grid.Column="1" Grid.Row="5" Grid.RowSpan="3" Grid.ColumnSpan="2" SnapsToDevicePixels="True" Visibility="Collapsed">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="45"/>
+					<ColumnDefinition/>
+				</Grid.ColumnDefinitions>
+				<Grid.RowDefinitions>
+					<RowDefinition/>
+					<RowDefinition/>
+					<RowDefinition/>
+				</Grid.RowDefinitions>
+				<ComboBox x:Name="cmbYZNet1" Margin="0,5" Grid.Column="1" Grid.Row="0" SnapsToDevicePixels="True"/>
+				<ComboBox x:Name="cmbYZNet2" Margin="0,5" Grid.Column="1" Grid.Row="2" SnapsToDevicePixels="True"/>
+				<LaTeX:FormulaControl x:Name="YZ_Descriptor" Formula="Z \updownarrow" Grid.Column ="0" Grid.Row="1" Grid.ColumnSpan="2" Margin="0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+				<Label Content="Net 1:" Margin="2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+				<Label Content="Net 2:" Margin="2" Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+			</Grid>
+			<Button x:Name="BtnCalc" Content="Calculate" Margin="5,5,0,5" Click="BtnCalc_Click" Grid.Column="1" Grid.Row="8" Grid.ColumnSpan="2"/>
 		</Grid>
 	</Grid>
 </Window>

@@ -8,6 +8,6 @@
         mc:Ignorable="d"
         Title="Result" SizeToContent="WidthAndHeight" MinWidth="250" MinHeight="100" Icon="Symbol.png">
     <Grid>
-		<LaTeX:FormulaControl x:Name="OutputExpression" Formula="\phi" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+		<LaTeX:FormulaControl x:Name="OutputExpression" Formula="\infty" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20"/>
 	</Grid>
 </Window>

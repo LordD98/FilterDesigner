@@ -16,20 +16,22 @@ using System.Windows.Threading;
 namespace FilterDesigner
 {
 	// TODO:
-	// Highlight branchpoints, add selection of input/output for transfer function
 	// Add plot to OutputWindow (bode)
+	// Factor out complex expressions by polynomial division
 	// Add copy to clipboard button in OutputWindow
 	// Merge branchpoints, delete lines and split nets
 	// 
+	// Visual effect: Evaluate R1*R1 => R1^2
 	// All objects snap to a grid
+	// Highlight branchpoints for selection of input/output of YZ/Transferfct.
 	// GetSummands() deep search with recursion?
-	// Simplify R1*R1 => R1^2
 	// Add window to plot transfer function, change values on the fly
 
 	public partial class MainWindow : Window
 	{
 		public static List<Component> allComponents;
 		public static ObservableCollection<Net> allNets;
+		private OutputWindow outputWindow;
 
 		private static Brush ButtonBackgroundBrush;
 
@@ -66,8 +68,13 @@ namespace FilterDesigner
 
 			allComponents = new List<Component>();
 			allNets = new ObservableCollection<Net>();
-			cbxNet1.ItemsSource = allNets;
-			cbxNet2.ItemsSource = allNets;
+			cmbTransferNetA1.ItemsSource = allNets;
+			cmbTransferNetA2.ItemsSource = allNets;
+			cmbTransferNetB1.ItemsSource = allNets;
+			cmbTransferNetB2.ItemsSource = allNets;
+			cmbYZNet1.ItemsSource = allNets;
+			cmbYZNet2.ItemsSource = allNets;
+			cmbOutputMode.SelectedIndex = 0;
 
 			//Net GND = new Net("GND");
 			//Net U1 = new Net("U1");
@@ -121,6 +128,7 @@ namespace FilterDesigner
 		public List<Path> FindPaths(Net A, Net B, List<Component> forbiddenComponents = null)
 		{
 			List<Path> paths = new List<Path>();
+			if(A == B) return paths;
 			bool done = false;
 			Net currentNet = A;
 			//Component source;
@@ -281,7 +289,7 @@ namespace FilterDesigner
 		public Expression GetExpressionOfPaths(List<Path> paths)
 		{
 			if(paths.Count == 0)
-				return null;
+				return 0;
 
 			if(paths.Count == 1)
 			{
@@ -469,37 +477,79 @@ namespace FilterDesigner
 				return false;
 		}
 
-		private void BtnTest_Click(object sender, RoutedEventArgs e)
+		private void BtnCalc_Click(object sender, RoutedEventArgs e)
 		{
-			if(cbxNet1.SelectedItem != null && cbxNet2.SelectedItem != null)
+			Expression result;
+			if(cmbOutputMode.SelectedIndex == 0)
 			{
-				if(cbxNet1.SelectedItem == cbxNet2.SelectedItem)
+				if(cmbTransferNetA1.SelectedItem == null || cmbTransferNetA2.SelectedItem == null || cmbTransferNetB1.SelectedItem == null || cmbTransferNetB2.SelectedItem == null)
 				{
-					tbxResult.Text = "0";
 					return;
 				}
 
-				List<Path> paths = FindPaths(cbxNet1.SelectedItem as Net, cbxNet2.SelectedItem as Net);
-				Expression exp = GetExpressionOfPaths(paths);
-				exp = exp.ToCommonDenominator();
-				exp = exp.ToStandardForm();
-				tbxResult.Text = exp.Evaluate();
+				//List<Path> paths = FindPaths(cmbTransferNetA1.SelectedItem as Net, cmbTransferNetA2.SelectedItem as Net);
+				//Expression exp = GetExpressionOfPaths(paths);
+				//exp = exp.ToCommonDenominator();
+				//exp = exp.ToStandardForm();
+				//tbxResult.Text = exp.Evaluate();
+				
+				result = GetTransferFunction
+				(
+					cmbTransferNetA1.SelectedItem as Net,
+					cmbTransferNetA2.SelectedItem as Net,
+					cmbTransferNetB1.SelectedItem as Net,
+					cmbTransferNetB2.SelectedItem as Net
+				);
 			}
-
-			Expression transferFunction = GetTransferFunction
-			(
-				allNets.First(n => n.Name == "$0"),
-				allNets.First(n => n.Name == "$2"),
-				allNets.First(n => n.Name == "$1"),
-				allNets.First(n => n.Name == "$2")
-			);
-			if(transferFunction != null)
+			else // Impedance/Admittance
 			{
-				OutputWindow output = new OutputWindow(transferFunction)
+				if(cmbYZNet1.SelectedItem == null || cmbYZNet2.SelectedItem == null)
+				{
+					return;
+				}
+				List<Path> paths = FindPaths(cmbYZNet1.SelectedItem as Net, cmbYZNet2.SelectedItem as Net);
+				if(cmbOutputMode.SelectedIndex == 1)
+				{
+					result = GetExpressionOfPaths(paths);
+				}
+				else
+				{
+					result = 1/GetExpressionOfPaths(paths);
+				}
+			}
+			if(result != null)
+			{
+				if(outputWindow != null && Application.Current.Windows.Cast<Window>().Any(x => x == outputWindow))
+				{
+					outputWindow.Close();
+				}
+				outputWindow = new OutputWindow(result)
 				{
 					Owner = this
 				};
-				output.Show();
+				outputWindow.Show();
+			}
+		}
+
+		private void CmbOutputMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+		{
+			if(cmbOutputMode.SelectedIndex == 0)
+			{
+				GrdOutputTransferFct.Visibility = Visibility.Visible;
+				GrdOutputImpedance.Visibility = Visibility.Collapsed;
+			}
+			else
+			{
+				if(cmbOutputMode.SelectedIndex == 1)
+				{
+					YZ_Descriptor.Formula = @"Z \updownarrow";
+				}
+				else // Admittance
+				{
+					YZ_Descriptor.Formula = @"Y \updownarrow";
+				}
+				GrdOutputTransferFct.Visibility = Visibility.Collapsed;
+				GrdOutputImpedance.Visibility = Visibility.Visible;
 			}
 		}
 
@@ -648,7 +698,15 @@ namespace FilterDesigner
 				setting += c.ExportComponent();
 				setting += "\n";
 			}
-			tbxResult.Text = setting;
+			setting += $"X;";
+			setting += $"{cmbOutputMode.SelectedIndex}:";
+			setting += $"{cmbTransferNetA1.SelectedIndex},";
+			setting += $"{cmbTransferNetA2.SelectedIndex},";
+			setting += $"{cmbTransferNetB1.SelectedIndex},";
+			setting += $"{cmbTransferNetB2.SelectedIndex}:";
+			setting += $"{cmbYZNet1.SelectedIndex},";
+			setting += $"{cmbYZNet2.SelectedIndex}";
+			//tbxResult.Text = setting;
 			File.WriteAllText("Settings.txt", setting);
 		}
 
@@ -678,6 +736,18 @@ namespace FilterDesigner
 					case 'C':
 						Component comp = Component.ImportComponent(setting.Substring(i, endIndex - i + 1).Replace("\n", ""));
 						comp.Draw();
+						break;
+					case 'X':
+						string[] config = setting.Substring(i + 2, endIndex - i - 1).Replace("\n", "").Split(':');
+						cmbOutputMode.SelectedIndex = int.Parse(config[0]);
+						string[] subConfig = config[1].Split(',');
+						cmbTransferNetA1.SelectedIndex = int.Parse(subConfig[0]);
+						cmbTransferNetA2.SelectedIndex = int.Parse(subConfig[1]);
+						cmbTransferNetB1.SelectedIndex = int.Parse(subConfig[2]);
+						cmbTransferNetB2.SelectedIndex = int.Parse(subConfig[3]);
+						subConfig = config[2].Split(',');
+						cmbYZNet1.SelectedIndex = int.Parse(subConfig[0]);
+						cmbYZNet2.SelectedIndex = int.Parse(subConfig[1]);
 						break;
 				}
 				i = endIndex + 1;
