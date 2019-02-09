@@ -229,6 +229,8 @@ namespace FilterDesigner
 
 		public abstract bool IsConst();
 
+		public abstract bool AllValuesSet();
+
 		public static int Compare(Expression x, Expression y)
 		{
 			if(!(x is ComponentExpression) && !(y is ComponentExpression))
@@ -840,6 +842,11 @@ namespace FilterDesigner
 		public override bool IsConst()
 		{
 			return Summands.All(s => s.IsConst());
+		}
+
+		public override bool AllValuesSet()
+		{
+			return Summands.All(s => s.AllValuesSet());
 		}
 
 		public override int GetHashCode()
@@ -1510,6 +1517,11 @@ namespace FilterDesigner
 			return Factors.All(f => f.IsConst());
 		}
 
+		public override bool AllValuesSet()
+		{
+			return Factors.All(f => f.AllValuesSet());
+		}
+
 		public override int GetHashCode()
 		{
 			return base.GetHashCode();
@@ -2028,6 +2040,11 @@ namespace FilterDesigner
 			return Numerator.IsConst() && Denominator.IsConst();
 		}
 
+		public override bool AllValuesSet()
+		{
+			return Numerator.AllValuesSet() && Denominator.AllValuesSet();
+		}
+
 		public override List<Expression> GetDenominators(List<Expression> result = null)
 		{
 			List<Expression> newResult;
@@ -2294,6 +2311,11 @@ namespace FilterDesigner
 		{
 			return false;
 		}
+
+		public override bool AllValuesSet()
+		{
+			return component != null;
+		}
 	}
 
 	public class ConstExpression : ValueExpression
@@ -2334,6 +2356,11 @@ namespace FilterDesigner
 		{
 			return true;
 		}
+
+		public override bool AllValuesSet()
+		{
+			return true;
+		}
 	}
 
 	public class S_Block : ValueExpression
@@ -2347,7 +2374,18 @@ namespace FilterDesigner
 
 		public override Impedance EvaluateImpedance(double frequency)
 		{
-			return new Impedance(0, 2 * Math.PI * frequency);
+			switch(Exponent % 4)
+			{
+				default:
+				case 0:
+					return new Impedance(Math.Pow(2 * Math.PI * frequency, Exponent), 0);
+				case 1:
+					return new Impedance(0, Math.Pow(2 * Math.PI * frequency, Exponent));
+				case 2:
+					return new Impedance(-Math.Pow(2 * Math.PI * frequency, Exponent), 0);
+				case 3:
+					return new Impedance(0, -Math.Pow(2 * Math.PI * frequency, Exponent));
+			}
 		}
 
 		public override string Evaluate()
@@ -2419,6 +2457,11 @@ namespace FilterDesigner
 		public override bool IsConst()
 		{
 			return false;
+		}
+
+		public override bool AllValuesSet()
+		{
+			return true;
 		}
 
 		public override Expression FactorOut(Expression factor)

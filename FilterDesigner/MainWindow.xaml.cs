@@ -16,7 +16,7 @@ using System.Windows.Threading;
 namespace FilterDesigner
 {
 	// TODO:
-	// Add plot to OutputWindow (bode)
+	// Add output plot axis labels / grid
 	// Factor out complex expressions by polynomial division
 	// Add copy to clipboard button in OutputWindow
 	// Merge branchpoints, delete lines and split nets
@@ -3397,6 +3397,16 @@ namespace FilterDesigner
 		public static Impedance operator |(Impedance Z1, Impedance Z2)  // Parallel-Operator
 		{
 			return (Z1 * Z2) / (Z1 + Z2);
+		}
+
+		public double Abs()
+		{
+			return Math.Sqrt(Resistance * Resistance + Reactance * Reactance);
+		}
+
+		public double Abs2()
+		{
+			return Resistance * Resistance + Reactance * Reactance;
 		}
 	}
 

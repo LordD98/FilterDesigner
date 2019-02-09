@@ -6,8 +6,9 @@
         xmlns:local="clr-namespace:FilterDesigner"
 		xmlns:LaTeX="clr-namespace:WpfMath.Controls;assembly=WpfMath"
         mc:Ignorable="d"
-        Title="Result" SizeToContent="WidthAndHeight" MinWidth="250" MinHeight="100" Icon="Symbol.png">
+        Title="Result" SizeToContent="WidthAndHeight" MinWidth="400" MinHeight="250" Icon="Symbol.png" KeyDown="OutputWindow_KeyDown" SizeChanged="OutputWindow_SizeChanged">
     <Grid>
 		<LaTeX:FormulaControl x:Name="OutputExpression" Formula="\infty" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20"/>
+		<Canvas x:Name="CvsGraph" Margin="10" Background="#FFD7D7FF" ClipToBounds="True"/>
 	</Grid>
 </Window>
