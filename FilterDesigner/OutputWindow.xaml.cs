@@ -24,8 +24,8 @@ namespace FilterDesigner
 		double yMax = 20;   // 20dB
 		double yMin = -60;  //-60dB
 
-		double xMin = -3;   // 10^-3 Hz
-		double xMax = 6;    // 10^6 Hz
+		double xMin = -0.99;   // 10^-3 Hz
+		double xMax = -0.01;    // 10^6 Hz
 
 		public Expression Function { get; set; }
 
@@ -51,6 +51,7 @@ namespace FilterDesigner
 			if(!Function.AllValuesSet())
 				return;
 			CvsGraph.Children.Clear();
+			DrawGrid();
 			double deltaY = yMax - yMin;
 			double deltaX = xMax - xMin;
 			double prevY = double.NaN;
@@ -84,6 +85,52 @@ namespace FilterDesigner
 				};
 				CvsGraph.Children.Add(line);
 				prevY = y;
+			}
+		}
+
+		private void DrawGrid()
+		{
+			double deltaY = yMax - yMin;
+			double deltaX = xMax - xMin;
+			double minFreq = Math.Pow(10, xMin);
+			double maxFreq = Math.Pow(10, xMax);
+
+			//double frequency = Math.Pow(10, x / CvsGraph.ActualWidth * deltaX + xMin);
+			int minPow = (int)Math.Log10(minFreq);
+			int maxPow = (int)Math.Log10(maxFreq);
+			if(minPow == maxPow)	// Combine these two ifs?
+			{
+				int min = (int)(Math.Pow(10, minPow+1) * minFreq);
+				int max = (int)(Math.Pow(10, maxPow+1) * maxFreq);
+				for(int i = min; i<=max; i++)
+				{
+					double freq = i * Math.Pow(10, minPow-1);
+					double x = (Math.Log10(freq) - xMin) / deltaX * CvsGraph.ActualWidth;
+					CvsGraph.Children.Add(new Line()
+					{
+						X1 = x,
+						Y1 = 0,
+						X2 = x,
+						Y2 = CvsGraph.ActualHeight,
+						Stroke = Brushes.Gray
+					});
+				}
+			}
+			else
+			{
+				for(int i = (int)(xMin); i <= (int)xMax; i++)
+				{
+					double freq = Math.Pow(10, i);
+					double x = (Math.Log10(freq) - xMin) / deltaX * CvsGraph.ActualWidth;
+					CvsGraph.Children.Add(new Line()
+					{
+						X1 = x,
+						Y1 = 0,
+						X2 = x,
+						Y2 = CvsGraph.ActualHeight,
+						Stroke = Brushes.Gray
+					});
+				}
 			}
 		}
 
