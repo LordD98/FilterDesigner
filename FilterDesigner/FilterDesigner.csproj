@@ -69,6 +69,10 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="LiveComponentValueDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="ConnectionPort.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -86,6 +90,9 @@
     </Compile>
     <Compile Include="ComponentDialog.xaml.cs">
       <DependentUpon>ComponentDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LiveComponentValueDialog.xaml.cs">
+      <DependentUpon>LiveComponentValueDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="ConnectionPort.xaml.cs">
       <DependentUpon>ConnectionPort.xaml</DependentUpon>

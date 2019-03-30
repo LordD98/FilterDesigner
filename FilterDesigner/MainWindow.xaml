@@ -9,7 +9,7 @@
         Title="Filter Designer" 
 		Height="500" Width="900" 
 		MinHeight="404"
-		Icon="Symbol.png" Focusable="True" KeyDown="MainWindow_KeyDown">
+		Icon="Symbol.png" Focusable="True" KeyDown="MainWindow_KeyDown" Closed="MainWindow_Closed">
 	<Window.CommandBindings>
 		<CommandBinding Command="Save" Executed = "Save_Executed"/>
 		<CommandBinding Command="Open" Executed = "Open_Executed"/>
@@ -35,6 +35,9 @@
 			</MenuItem>
 			<MenuItem Header="Edit">
 				<MenuItem x:Name="menuItemClear" Header="Clear" Command="{x:Static local:MainWindow.Clear}" InputGestureText="Ctrl+Del"/>
+			</MenuItem>
+			<MenuItem Header="Test">
+				<MenuItem x:Name="menuItemTestOutputWindow" Header="Test Output Window" Click="MenuItemTestOutputWindow_Click"/>
 			</MenuItem>
 		</Menu>
 		<Canvas x:Name="canvas" 

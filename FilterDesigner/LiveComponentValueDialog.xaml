@@ -1,0 +1,72 @@
+﻿<Window x:Class="FilterDesigner.LiveComponentValueDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:FilterDesigner"
+        mc:Ignorable="d"
+        Title="Change Component Values" Height="450" Width="300">
+	<Grid>
+		<ScrollViewer Margin="0">
+			<Grid ScrollViewer.CanContentScroll="True" Margin="0,0,20,0">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+					<RowDefinition Height="15"/>
+				</Grid.RowDefinitions>
+				<TextBlock Grid.Row="0">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="1">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="2">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="3">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="4">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="5">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="6">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="7">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="8">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="9">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="10">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="11">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="12">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="13">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="14">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="15">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="16">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="17">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="18">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="19">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="20">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="21">"Hallo!"</TextBlock>
+				<TextBlock Grid.Row="22">"Hallo!"</TextBlock>
+			</Grid>
+		</ScrollViewer>
+
+	</Grid>
+</Window>

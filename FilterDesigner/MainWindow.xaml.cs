@@ -110,6 +110,18 @@ namespace FilterDesigner
 			}
 		}
 
+		private void MenuItemTestOutputWindow_Click(object sender, RoutedEventArgs e)
+		{
+			Expression s = Expression.S;
+			Expression result = 1/((1 + s/(Math.PI*2e3))*(1 + s/(Math.PI*1e5)));
+			if(outputWindow != null && Application.Current.Windows.Cast<Window>().Any(x => x == outputWindow))
+			{
+				outputWindow.Close();
+			}
+			outputWindow = new OutputWindow(result);
+			outputWindow.Show();
+		}
+
 		private void Canvas_LeftMouseDown(object sender, MouseEventArgs e)
 		{
 			if(!clickedComponent)
@@ -492,7 +504,7 @@ namespace FilterDesigner
 				//exp = exp.ToCommonDenominator();
 				//exp = exp.ToStandardForm();
 				//tbxResult.Text = exp.Evaluate();
-				
+
 				result = GetTransferFunction
 				(
 					cmbTransferNetA1.SelectedItem as Net,
@@ -514,7 +526,7 @@ namespace FilterDesigner
 				}
 				else
 				{
-					result = 1/GetExpressionOfPaths(paths);
+					result = 1 / GetExpressionOfPaths(paths);
 				}
 			}
 			if(result != null)
@@ -781,6 +793,11 @@ namespace FilterDesigner
 					BtnRotateRight_Click(null, null);
 				}
 			}
+		}
+
+		private void MainWindow_Closed(object sender, EventArgs e)
+		{
+			outputWindow.Close();
 		}
 	}
 
@@ -2042,8 +2059,8 @@ namespace FilterDesigner
 		public abstract double PortB_MarginY { get; }   //
 
 		private static Component movedComponent;
-		private static double moveStartX;				// Start position of movedComponent
-		private static double moveStartY;				//
+		private static double moveStartX;               // Start position of movedComponent
+		private static double moveStartY;               //
 		private static double mousedown_x = -1;
 		private static double mousedown_y = -1;
 
@@ -2645,7 +2662,7 @@ namespace FilterDesigner
 				Text = $"{resistance} \u03A9",
 				Visibility = valueVisible ? Visibility.Visible : Visibility.Collapsed
 			};
-			
+
 			Canvas.SetLeft(symbol, 22);
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
@@ -2669,7 +2686,7 @@ namespace FilterDesigner
 			DrawRotation();
 			UpdateBaseCanvas();
 		}
-		
+
 		public override void DrawRotation()
 		{
 			if((int)Rotation % 2 == 0)  // Horizontal
@@ -2915,7 +2932,7 @@ namespace FilterDesigner
 				Text = $"{inductance} H",
 				Visibility = valueVisible ? Visibility.Visible : Visibility.Collapsed
 			};
-			
+
 			Canvas.SetLeft(symbol, 22);
 			Canvas.SetTop(symbol, 5);
 			Canvas.SetLeft(leads, 2);
@@ -3203,10 +3220,10 @@ namespace FilterDesigner
 			Canvas.SetTop(border, 5);
 			Canvas.SetLeft(leads, 2);
 			Canvas.SetTop(leads, 25);
-			Canvas.SetLeft(nameText, VisualGroup.Width/2 - 20);
-			Canvas.SetTop(nameText, VisualGroup.Height/2 - 39);
-			Canvas.SetLeft(valueText, VisualGroup.Width/2 - 20);
-			Canvas.SetTop(valueText, VisualGroup.Height/2 + 22);
+			Canvas.SetLeft(nameText, VisualGroup.Width / 2 - 20);
+			Canvas.SetTop(nameText, VisualGroup.Height / 2 - 39);
+			Canvas.SetLeft(valueText, VisualGroup.Width / 2 - 20);
+			Canvas.SetTop(valueText, VisualGroup.Height / 2 + 22);
 			Canvas.SetLeft(PortA, X + ComponentMargins.Capacitor_PortA_X - ConnectionPort.Radius);
 			Canvas.SetTop(PortA, Y + ComponentMargins.Capacitor_PortA_Y - ConnectionPort.Radius);
 			Canvas.SetLeft(PortB, X + ComponentMargins.Capacitor_PortB_X - ConnectionPort.Radius);
