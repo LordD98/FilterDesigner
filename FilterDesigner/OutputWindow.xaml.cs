@@ -470,7 +470,7 @@ namespace FilterDesigner
 			return result;
 		}
 
-		static string DoubleToText(double d)
+		public static string DoubleToText(double d)
 		{
 			int exponent = (int)Math.Floor(Math.Log10(d));
 			double mantisse = Math.Round(d / Math.Pow(10, exponent), 2, MidpointRounding.AwayFromZero);

@@ -51,7 +51,7 @@ namespace FilterDesigner
 		{
 			get
 			{
-				if(double.TryParse(tbxValue.Text, out double resultValue))
+				if(Component.ParseValue(tbxValue.Text, out double resultValue))
 				{
 					return resultValue;
 				}

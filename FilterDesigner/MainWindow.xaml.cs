@@ -11,12 +11,13 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using static FilterDesigner.MainWindow;
 //using static FilterDesigner.MainWindow;
 
 namespace FilterDesigner
 {
 	// TODO:
-	// Add output plot axis labels / grid
+	// Update ComponentDialog
 	// Factor out complex expressions by polynomial division
 	// Add copy to clipboard button in OutputWindow
 	// Merge branchpoints, delete lines and split nets
@@ -2216,6 +2217,141 @@ namespace FilterDesigner
 			return result;
 		}
 
+		public static bool ParseValue(string strValue, out double result, bool checkUnits = false)
+		{
+			result = 0;
+			strValue = strValue.Replace('.', ',').Replace(" ", "");
+			if(strValue == "") return false;
+			if(strValue.Any(c => !char.IsLetterOrDigit(c) && c != '^' && c != '-' && c != '+' && c != ',' && c != '*'
+											&& c != '\u00B7' && c != '\u00D7' && c != '\u2715' && c != '\u2716' && c != '\u2A2F'
+											&& c != '\u22C5' && c != '\u2219' && c != '\u2217' && c != '\u2062')) // || c == '.'
+			{
+				return false;
+			}
+			if(strValue.Count(c => c == ',') > 1)
+				return false;
+			int exponent = 0;
+			int endIndex = strValue.Length - 1;
+			switchStart:
+			char last = strValue[endIndex];
+			if(char.IsLetter(last))
+			{
+				switch(last)
+				{
+					case 'm':
+					case 'M':
+						if((strValue[endIndex - 1] == 'H' || strValue[endIndex - 1] == 'h') && (strValue[endIndex - 2] == 'O' || strValue[endIndex - 2] == 'o'))
+						{
+							endIndex -= 2;
+							goto case 'h';
+						}
+						else if(char.IsDigit(strValue[endIndex - 1]))
+						{
+							if(last == 'm')
+								exponent -= 3;
+							else // last == 'M'
+								exponent += 6;
+							//endIndex--;
+							break;
+						}
+						return false;
+					case '\u03A9':
+					case '\u2126':
+					case 'O':
+					case 'o':
+					case 'F':
+					case 'f':
+					case 'H':
+					case 'h':
+						endIndex--;
+						last = strValue[endIndex];
+						if(!char.IsDigit(last))
+						{
+							switch(strValue[endIndex])
+							{
+								case 'p':
+								case 'n':
+								case 'µ':
+								case 'm':
+								case 'u':
+								case 'k':
+								case 'M':
+								case 'G':
+								case 'T':
+									goto switchStart;
+								//endIndex--;
+								//break;
+								default:
+									return false;
+							}
+						}
+						endIndex++;
+						break;
+					case 'p':
+						exponent -= 12;
+						break;
+					case 'n':
+						exponent -= 9;
+						break;
+					case 'µ':
+						exponent -= 6;
+						break;
+					case 'u':
+						exponent -= 6;
+						break;
+					case 'k':
+						exponent += 3;
+						break;
+					case 'G':
+						exponent += 9;
+						break;
+					case 'T':
+						exponent += 12;
+						break;
+					default:
+						return false;
+				}
+				endIndex--;
+			}
+			if(strValue.Contains('^'))
+			{
+				if(!strValue.Contains("10^") || strValue.Count(c => c == '^') > 1)
+					return false;
+				//endIndex = strValue.LastIndexOf('^') + 1;
+				if(strValue.LastIndexOf(',') >= strValue.LastIndexOf('^') - 3 && strValue.LastIndexOf('^') > 2)
+					return false;
+				if(!int.TryParse(strValue.Substring(strValue.LastIndexOf('^') + 1, endIndex - strValue.LastIndexOf('^')), out int addExponent))
+				{
+					return false;
+				}
+				exponent += addExponent;
+				endIndex = strValue.IndexOf("10^") - 2;
+			}
+			if(endIndex < 0)
+			{
+				result = Math.Pow(10, exponent);
+				return true;
+			}
+			bool success = double.TryParse(strValue.Substring(0, endIndex + 1), out double value);
+			if(success)
+			{
+				result = value * Math.Pow(10, exponent);
+			}
+			return success;
+		}
+
+		protected abstract void SetValue(double value);
+
+		public bool SetValueStr(string strValue, bool checkUnits = false)
+		{
+			bool success = ParseValue(strValue, out double result, checkUnits);
+			if(success)
+			{
+				SetValue(result);
+			}
+			return success;
+		}
+
 		public abstract string GetValueStr();
 
 		public bool IsConnected(Net net)
@@ -2490,6 +2626,8 @@ namespace FilterDesigner
 		public abstract Impedance GetImpedance(double frequency);
 
 		public abstract Expression GetExpression();
+
+		public abstract ComponentType GetComponentType();
 	}
 
 	public class Resistor : Component
@@ -2621,6 +2759,11 @@ namespace FilterDesigner
 		public override string ExportComponent()
 		{
 			return $"R;{Name};{resistance}" + base.ExportComponent();
+		}
+
+		protected override void SetValue(double value)
+		{
+			Resistance = value;
 		}
 
 		public override string GetValueStr()
@@ -2760,6 +2903,11 @@ namespace FilterDesigner
 		{
 			return new ComponentExpression(this);
 		}
+
+		public override ComponentType GetComponentType()
+		{
+			return ComponentType.Resistor;
+		}
 	}
 
 	public class Inductor : Component
@@ -2891,6 +3039,11 @@ namespace FilterDesigner
 		public override string ExportComponent()
 		{
 			return $"L;{Name};{inductance}" + base.ExportComponent();
+		}
+
+		protected override void SetValue(double value)
+		{
+			Inductance = value;
 		}
 
 		public override string GetValueStr()
@@ -3025,6 +3178,11 @@ namespace FilterDesigner
 		public override Expression GetExpression()
 		{
 			return new Product(Expression.S, new ComponentExpression(this));
+		}
+
+		public override ComponentType GetComponentType()
+		{
+			return ComponentType.Inductor;
 		}
 	}
 
@@ -3166,6 +3324,11 @@ namespace FilterDesigner
 		public override string ExportComponent()
 		{
 			return $"C;{Name};{capacitance}" + base.ExportComponent();
+		}
+
+		protected override void SetValue(double value)
+		{
+			Capacitance = value;
 		}
 
 		public override string GetValueStr()
@@ -3326,6 +3489,11 @@ namespace FilterDesigner
 					new ComponentExpression(this)
 				)
 			};
+		}
+
+		public override ComponentType GetComponentType()
+		{
+			return ComponentType.Capacitor;
 		}
 	}
 

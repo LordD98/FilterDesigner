@@ -588,6 +588,39 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
+		public void Component_SetValueStr_Equal()
+		{
+			Resistor R = new Resistor("R1");
+			Inductor L = new Inductor("L1");
+			Capacitor C = new Capacitor("C1");
+
+			R.SetValueStr("12.3456709");
+			Assert.AreEqual(R.Resistance, 12.3456709);
+			R.SetValueStr("12.3456709\x2126");	// Deprecated Unicode Character
+			Assert.AreEqual(R.Resistance, 12.3456709);
+			R.SetValueStr("12.3456709\u03A9");
+			Assert.AreEqual(R.Resistance, 12.3456709);
+			R.SetValueStr("1e-2");
+			Assert.AreEqual(R.Resistance, 1e-2);
+			R.SetValueStr("1e-2mOhm");
+			Assert.AreEqual(R.Resistance, 1e-5);
+			C.SetValueStr("1n");
+			Assert.AreEqual(C.Capacitance, 1e-9);
+			L.SetValueStr("1µH");
+			Assert.AreEqual(L.Inductance, 1e-6);
+			C.SetValueStr("19.23e-2*10^21nF");
+			Assert.AreEqual(C.Capacitance, 1.923e11);
+			L.SetValueStr("10^8");
+			Assert.AreEqual(L.Inductance, 1e8);
+			L.SetValueStr("5e2\u00B7"+"10^8");
+			Assert.AreEqual(L.Inductance, 5e10);
+			R.SetValueStr("4.1e2·10^9Ω");
+			Assert.AreEqual(R.Resistance, 4.1e11);
+			R.SetValueStr("5.6e2·10^3Ω");	// Different (deprecated) symbol
+			Assert.AreEqual(R.Resistance, 5.6e5);
+		}
+
+		[TestMethod]
 		public void PolynomialDivision_AreEqual()
 		{
 			S_Block s = Expression.S;
