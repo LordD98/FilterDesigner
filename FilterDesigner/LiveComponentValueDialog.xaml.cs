@@ -20,9 +20,12 @@ namespace FilterDesigner
 	/// </summary>
 	public partial class LiveComponentValueDialog : Window
 	{
-		public LiveComponentValueDialog(List<Component> components)
+		private OutputWindow Host;
+
+		public LiveComponentValueDialog(List<Component> components, OutputWindow host)
 		{
 			InitializeComponent();
+			Host = host;
 			foreach(Component component in components)
 			{
 				AddComponent(component);
@@ -31,16 +34,44 @@ namespace FilterDesigner
 
 		public void AddComponent(Component component)
 		{
-			while(GridComponents.Children.Count / 4 >= GridComponents.RowDefinitions.Count)
+			GridComponents.RowDefinitions.Add(new RowDefinition { Height = new GridLength(27) });
+			Border border = new Border
 			{
-				GridComponents.RowDefinitions.Add(new RowDefinition { Height = new GridLength(20) });
-			}
-			TextBlock tbk = new TextBlock { Width = double.NaN, Text = component.Name, VerticalAlignment = VerticalAlignment.Center };
-			Rectangle rect = new Rectangle { Width = double.NaN, Fill = Brushes.DarkGray, VerticalAlignment = VerticalAlignment.Center };
-			Slider sldValue = new Slider { Width = double.NaN };
+				BorderBrush =  Brushes.LightGreen,
+				BorderThickness = new Thickness(1),
+				Height = 25,
+				VerticalAlignment = VerticalAlignment.Top
+			};
+			DockPanel dockpanel = new DockPanel();
+			Label label = new Label
+			{
+				Width = 50,
+				Content = component.Name,
+				Padding = new Thickness(3, 0, 0, 0),
+				VerticalContentAlignment = VerticalAlignment.Center, 
+			};
+			Rectangle rect = new Rectangle
+			{
+				Width = 15,
+				Height = 23,
+				Fill = Brushes.DarkGray,
+				//Fill = 0xFF949494,
+				//VerticalAlignment = VerticalAlignment.Center
+			};
+			Slider sldValue = new Slider()
+			{
+				VerticalAlignment = VerticalAlignment.Center
+			};
+			TextBox tbxValue = new TextBox
+			{
+				Width = 60,
+				Height = 17,
+				Margin = new Thickness(0,0,3,0),
+				HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+				VerticalAlignment = VerticalAlignment.Center
+			};
 			sldValue.Resources.Add(0, GridComponents.RowDefinitions.Count - 1);
 			sldValue.Resources.Add(1, component);
-			TextBox tbxValue = new TextBox { Width = double.NaN };
 			tbxValue.Resources.Add(0, GridComponents.RowDefinitions.Count - 1);
 			tbxValue.Resources.Add(1, component);
 			if(component is Resistor)
@@ -64,23 +95,48 @@ namespace FilterDesigner
 			sldValue.ValueChanged += SldValue_ValueChanged;
 			tbxValue.KeyDown += TbxValue_KeyDown;
 			tbxValue.TextChanged += TbxValue_TextChanged;
-			GridComponents.Children.Add(rect);
-			GridComponents.Children.Add(tbk);
-			GridComponents.Children.Add(sldValue);
-			GridComponents.Children.Add(tbxValue);
-			Grid.SetColumn(rect, 0);
-			Grid.SetColumn(tbk, 1);
-			Grid.SetColumn(sldValue, 2);
-			Grid.SetColumn(tbxValue, 3);
-			Grid.SetRow(rect, GridComponents.RowDefinitions.Count - 1);
-			Grid.SetRow(tbk, GridComponents.RowDefinitions.Count - 1);
-			Grid.SetRow(sldValue, GridComponents.RowDefinitions.Count - 1);
-			Grid.SetRow(tbxValue, GridComponents.RowDefinitions.Count - 1);
+			GridComponents.Children.Add(border);
+			border.Child = dockpanel;
+			dockpanel.Children.Add(rect);
+			dockpanel.Children.Add(label);
+			dockpanel.Children.Add(tbxValue);
+			dockpanel.Children.Add(sldValue);
+			DockPanel.SetDock(rect, Dock.Left);
+			DockPanel.SetDock(label, Dock.Left);
+			DockPanel.SetDock(tbxValue, Dock.Right);
+			Grid.SetRow(border, GridComponents.RowDefinitions.Count - 1);
+			Slider_SetValue(sldValue, component.GetValue());
+			SldValue_ValueChanged(sldValue, null);
+		}
+
+		private void Slider_SetValue(Slider slider, double value)
+		{
+			if(value == 0.0)
+			{
+				slider.Value = slider.Minimum;
+			}
+			else
+			{
+				slider.Value = Math.Log10(Math.Abs(value));
+			}
 		}
 
 		private void TbxValue_TextChanged(object sender, EventArgs e)
 		{
-			((sender as TextBox).Resources[1] as Component).SetValueStr((sender as TextBox).Text);
+			Component component = (sender as TextBox).Resources[1] as Component;
+			Slider slider = ((GridComponents.Children[(int)(sender as TextBox).Resources[0]] as Border).Child as DockPanel).Children[3] as Slider;
+			if(component.SetValueStr((sender as TextBox).Text))
+			{
+				//Green
+				(GridComponents.Children[(int)(sender as TextBox).Resources[0]] as Border).BorderBrush = Brushes.Green;
+				Host.DrawFunction();
+			}
+			else
+			{
+				//Red
+				(GridComponents.Children[(int)(sender as TextBox).Resources[0]] as Border).BorderBrush = Brushes.Red;
+			}
+			Slider_SetValue(slider, component.GetValue());
 		}
 
 		private void TbxValue_KeyDown(object sender, KeyEventArgs e)
@@ -88,7 +144,9 @@ namespace FilterDesigner
 			if(e.Key == Key.Enter)
 			{
 				// Lose Focus
-				Keyboard.Focus(GridComponents.Children[4*(int)(sender as TextBox).Resources[0]+2]);
+				Keyboard.Focus(((GridComponents.Children[(int)(sender as TextBox).Resources[0]] as Border).Child as DockPanel).Children[3] as Slider);
+				Component component = (sender as TextBox).Resources[1] as Component;
+				(sender as TextBox).Text = component.GetValueStr();
 				e.Handled = true;
 			}
 		}
@@ -97,52 +155,14 @@ namespace FilterDesigner
 		{
 			Slider slider = sender as Slider;
 			int row = (int)slider.Resources[0];
-			TextBox tbxValue = GridComponents.Children[row * 4 + 3] as TextBox;
+			TextBox tbxValue = ((GridComponents.Children[row] as Border).Child as DockPanel).Children[2] as TextBox;
 			tbxValue.Text = ValueToText(Math.Pow(10, slider.Value), (slider.Resources[1] as Component).GetComponentType());
 		}
 
 		public string ValueToText(double value, ComponentType type)
 		{
-			int exponent = ((int)Math.Floor(Math.Log10(value) / 3)) * 3;
-			double mantisse = Math.Round(value / Math.Pow(10, exponent), 2, MidpointRounding.AwayFromZero);
 			string result = "";
-			if(mantisse != 1.0)
-			{
-				result += string.Format("{0:0.##}", mantisse);
-			}
-			else
-			{
-				result += "1";
-			}
-			switch(exponent)
-			{
-				case -12:
-					result += "p";
-					break;
-				case -9:
-					result += "n";
-					break;
-				case -6:
-					result += "µ";
-					break;
-				case -3:
-					result += "m";
-					break;
-				case 3:
-					result += "k";
-					break;
-				case 6:
-					result += "M";
-					break;
-				case 9:
-					result += "G";
-					break;
-				case 12:
-					result += "T";
-					break;
-				default:
-					break;
-			}
+			result += Component.PrintValue(value);
 			switch(type)
 			{
 				case ComponentType.Resistor:

@@ -52,7 +52,7 @@ namespace FilterDesigner
 				OutputExpression.Formula = @"\infty";
 			}
 
-			lcvd = new LiveComponentValueDialog(MainWindow.allComponents);
+			lcvd = new LiveComponentValueDialog(MainWindow.allComponents, this);
 			lcvd.Show();
 
 			DispatcherTimer timer = new DispatcherTimer();
@@ -61,13 +61,11 @@ namespace FilterDesigner
 			timer.Start();
 		}
 
-		private void Draw()
+		public void Draw()
 		{
 			lastDrawHeight = CvsGraph.ActualHeight;
 			lastDrawWidth = CvsGraph.ActualWidth;
-			CvsGraph.Children.Clear();
 			CvsBase.Children.Clear();
-			CvsBase.Children.Add(CvsGraph);
 			DrawGrid();
 			//if(!Function.AllValuesSet())    // Unknown variables?
 			//{
@@ -84,8 +82,9 @@ namespace FilterDesigner
 			//}
 		}
 
-		private void DrawFunction()
+		public void DrawFunction()
 		{
+			CvsGraph.Children.Clear();
 			double deltaY = yMax - yMin;
 			double deltaX = xMax - xMin;
 			double prevY = double.NaN;
@@ -126,8 +125,9 @@ namespace FilterDesigner
 			}
 		}
 
-		private void DrawGrid()
+		public void DrawGrid()
 		{
+			CvsGrid.Children.Clear();
 			double deltaY = yMax - yMin;
 			double deltaX = xMax - xMin;
 			double minFreq = Math.Pow(10, xMin);
@@ -138,7 +138,7 @@ namespace FilterDesigner
 			foreach(double magnitude in magValues)
 			{
 				double y = MagnitudeToYCoordinate(20 * magnitude);
-				CvsGraph.Children.Add(new Line()
+				CvsGrid.Children.Add(new Line()
 				{
 					X1 = 0,
 					Y1 = y,
@@ -173,11 +173,11 @@ namespace FilterDesigner
 				foreach(double magnitude in specialMagValues)
 				{
 					double y = MagnitudeToYCoordinate(20 * magnitude);
-					CvsGraph.Children.Add(new Line()
+					CvsGrid.Children.Add(new Line()
 					{
 						X1 = 0,
 						Y1 = y,
-						X2 = CvsGraph.ActualWidth,
+						X2 = CvsGrid.ActualWidth,
 						Y2 = y,
 						Stroke = Brushes.Black,
 						StrokeThickness = 3,
@@ -193,7 +193,7 @@ namespace FilterDesigner
 						desc.Text = string.Format("{0:###}", 20 * magnitude);
 					}
 					CvsBase.Children.Add(desc);
-					Canvas.SetTop(desc, y + Canvas.GetTop(CvsGraph) - 10);
+					Canvas.SetTop(desc, y + Canvas.GetTop(CvsGrid) - 10);
 					if(magnitude >= 0)
 					{
 						Canvas.SetLeft(desc, 8);
@@ -207,12 +207,12 @@ namespace FilterDesigner
 			foreach(double frequency in freqValues)
 			{
 				double x = FrequencyToXCoordinate(frequency);
-				CvsGraph.Children.Add(new Line()
+				CvsGrid.Children.Add(new Line()
 				{
 					X1 = x,
 					Y1 = 0,
 					X2 = x,
-					Y2 = CvsGraph.ActualHeight,
+					Y2 = CvsGrid.ActualHeight,
 					Stroke = Brushes.Black,
 					StrokeThickness = 1,
 					SnapsToDevicePixels = true
@@ -221,12 +221,12 @@ namespace FilterDesigner
 			//foreach(double frequencyLog in freqLogValues[1])
 			//{
 			//	double x = FrequencyToXCoordinate(Math.Pow(10, frequencyLog));
-			//	CvsGraph.Children.Add(new Line()
+			//	CvsGrid.Children.Add(new Line()
 			//	{
 			//		X1 = x,
 			//		Y1 = 0,
 			//		X2 = x,
-			//		Y2 = CvsGraph.ActualHeight,
+			//		Y2 = CvsGrid.ActualHeight,
 			//		Stroke = Brushes.Gray,
 			//		StrokeThickness = 1,
 			//		StrokeDashArray = { 2, 2 },
@@ -238,12 +238,12 @@ namespace FilterDesigner
 				foreach(double frequency in specialFreqValues)
 				{
 					double x = FrequencyToXCoordinate(frequency);
-					CvsGraph.Children.Add(new Line()
+					CvsGrid.Children.Add(new Line()
 					{
 						X1 = x,
 						Y1 = 0,
 						X2 = x,
-						Y2 = CvsGraph.ActualHeight,
+						Y2 = CvsGrid.ActualHeight,
 						Stroke = Brushes.Black,
 						StrokeThickness = 3,
 						SnapsToDevicePixels = true

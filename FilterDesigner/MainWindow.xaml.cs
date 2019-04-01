@@ -17,16 +17,17 @@ using static FilterDesigner.MainWindow;
 namespace FilterDesigner
 {
 	// TODO:
-	// Update ComponentDialog
+	// Add window to plot transfer function, change values on the fly
 	// Factor out complex expressions by polynomial division
-	// Add copy to clipboard button in OutputWindow
 	// Merge branchpoints, delete lines and split nets
-	// 
+	//
+	// Less important:
+	// Parse 1k2 (as example)
+	// Add copy to clipboard button in OutputWindow
 	// Visual effect: Evaluate R1*R1 => R1^2
 	// All objects snap to a grid
 	// Highlight branchpoints for selection of input/output of YZ/Transferfct.
 	// GetSummands() deep search with recursion?
-	// Add window to plot transfer function, change values on the fly
 
 	public partial class MainWindow : Window
 	{
@@ -1271,7 +1272,7 @@ namespace FilterDesigner
 			string impedance = "";
 			foreach(Component component in Components)
 			{
-				impedance += component.GetValueStr() + "+";
+				impedance += component.GetImpedanceStr() + "+";
 			}
 			if(impedance.Length > 0)
 				impedance = impedance.Remove(impedance.Length - 1, 1);
@@ -2221,7 +2222,8 @@ namespace FilterDesigner
 		{
 			result = 0;
 			strValue = strValue.Replace('.', ',').Replace(" ", "");
-			if(strValue == "") return false;
+			if(strValue == "" || !strValue.Any(c => char.IsDigit(c)))
+				return false;
 			if(strValue.Any(c => !char.IsLetterOrDigit(c) && c != '^' && c != '-' && c != '+' && c != ',' && c != '*'
 											&& c != '\u00B7' && c != '\u00D7' && c != '\u2715' && c != '\u2716' && c != '\u2A2F'
 											&& c != '\u22C5' && c != '\u2219' && c != '\u2217' && c != '\u2062')) // || c == '.'
@@ -2340,7 +2342,54 @@ namespace FilterDesigner
 			return success;
 		}
 
+		public static string PrintValue(double value)
+		{
+			int exponent = ((int)Math.Floor(Math.Log10(value) / 3)) * 3;
+			double mantisse = Math.Round(value / Math.Pow(10, exponent), 2, MidpointRounding.AwayFromZero);
+			string result = "";
+			if(mantisse != 1.0)
+			{
+				result += string.Format("{0:0.##}", mantisse);
+			}
+			else
+			{
+				result += "1";
+			}
+			switch(exponent)
+			{
+				case -12:
+					result += "p";
+					break;
+				case -9:
+					result += "n";
+					break;
+				case -6:
+					result += "µ";
+					break;
+				case -3:
+					result += "m";
+					break;
+				case 3:
+					result += "k";
+					break;
+				case 6:
+					result += "M";
+					break;
+				case 9:
+					result += "G";
+					break;
+				case 12:
+					result += "T";
+					break;
+				default:
+					break;
+			}
+			return result;
+		}
+
 		protected abstract void SetValue(double value);
+
+		public abstract double GetValue();
 
 		public bool SetValueStr(string strValue, bool checkUnits = false)
 		{
@@ -2353,6 +2402,8 @@ namespace FilterDesigner
 		}
 
 		public abstract string GetValueStr();
+
+		public abstract string GetImpedanceStr();
 
 		public bool IsConnected(Net net)
 		{
@@ -2761,12 +2812,22 @@ namespace FilterDesigner
 			return $"R;{Name};{resistance}" + base.ExportComponent();
 		}
 
+		public override double GetValue()
+		{
+			return Resistance;
+		}
+
 		protected override void SetValue(double value)
 		{
 			Resistance = value;
 		}
 
 		public override string GetValueStr()
+		{
+			return $"{PrintValue(Resistance)}\u03A9";
+		}
+
+		public override string GetImpedanceStr()
 		{
 			return Name;
 		}
@@ -3041,12 +3102,22 @@ namespace FilterDesigner
 			return $"L;{Name};{inductance}" + base.ExportComponent();
 		}
 
+		public override double GetValue()
+		{
+			return Inductance;
+		}
+
 		protected override void SetValue(double value)
 		{
 			Inductance = value;
 		}
 
 		public override string GetValueStr()
+		{
+			return $"{PrintValue(Inductance)}H";
+		}
+
+		public override string GetImpedanceStr()
 		{
 			return "s" + Name;
 		}
@@ -3326,12 +3397,22 @@ namespace FilterDesigner
 			return $"C;{Name};{capacitance}" + base.ExportComponent();
 		}
 
+		public override double GetValue()
+		{
+			return Capacitance;
+		}
+
 		protected override void SetValue(double value)
 		{
 			Capacitance = value;
 		}
 
 		public override string GetValueStr()
+		{
+			return $"{PrintValue(Capacitance)}F";
+		}
+
+		public override string GetImpedanceStr()
 		{
 			return $"1/(s{Name})";
 		}
