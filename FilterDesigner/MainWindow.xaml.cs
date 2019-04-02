@@ -799,7 +799,7 @@ namespace FilterDesigner
 
 		private void MainWindow_Closed(object sender, EventArgs e)
 		{
-			outputWindow.Close();
+			outputWindow?.Close();
 		}
 	}
 

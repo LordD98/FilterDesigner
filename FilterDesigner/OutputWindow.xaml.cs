@@ -32,6 +32,8 @@ namespace FilterDesigner
 		LiveComponentValueDialog lcvd;
 		public Expression Function { get; set; }
 
+		private Point mouseClick = new Point(-1, -1);
+
 		private double lastDrawWidth = 0;
 		private double lastDrawHeight = 0;
 		Thread FunctionThread;
@@ -67,6 +69,7 @@ namespace FilterDesigner
 			lastDrawWidth = CvsGraph.ActualWidth;
 			CvsBase.Children.Clear();
 			DrawGrid();
+			DrawFunction();
 			//if(!Function.AllValuesSet())    // Unknown variables?
 			//{
 			//	return;
@@ -110,16 +113,19 @@ namespace FilterDesigner
 
 				//Dispatcher.Invoke(() =>
 				//{
-				Line line = new Line()
+				if(!double.IsInfinity(y) && !double.IsNaN(y) && !double.IsInfinity(prevY) && !double.IsNaN(prevY))
 				{
-					StrokeThickness = 1,
-					Stroke = Brushes.Red,
-					X1 = x - 1,
-					X2 = x,
-					Y1 = prevY,
-					Y2 = y
-				};
-				CvsGraph.Children.Add(line);
+					Line line = new Line()
+					{
+						StrokeThickness = 1,
+						Stroke = Brushes.Red,
+						X1 = x - 1,
+						X2 = x,
+						Y1 = prevY,
+						Y2 = y
+					};
+					CvsGraph.Children.Add(line);
+				}
 				//}, DispatcherPriority.Input);
 				prevY = y;
 			}
@@ -301,7 +307,10 @@ namespace FilterDesigner
 
 		public double MagnitudeToYCoordinate(double mag)
 		{
-			return (1 - (mag - yMin) / (yMax - yMin)) * CvsGraph.ActualHeight;
+			if(yMax == yMin)
+				return CvsGraph.ActualHeight / 2;
+			else
+				return (1 - (mag - yMin) / (yMax - yMin)) * CvsGraph.ActualHeight;
 		}
 
 		public double YCoordinateToMagnitude(double y)
@@ -311,7 +320,10 @@ namespace FilterDesigner
 
 		public double FrequencyToXCoordinate(double freq)
 		{
-			return (Math.Log10(freq) - xMin) / (xMax - xMin) * CvsGraph.ActualWidth;
+			if(xMin == xMax)
+				return CvsGraph.ActualWidth / 2;
+			else
+				return (Math.Log10(freq) - xMin) / (xMax - xMin) * CvsGraph.ActualWidth;
 		}
 
 		public double XCoordinateToFrequency(double x)
@@ -326,12 +338,18 @@ namespace FilterDesigner
 				if(OutputExpression.Visibility == Visibility.Collapsed)
 				{
 					OutputExpression.Visibility = Visibility.Visible;
+					Border.Visibility = Visibility.Collapsed;
+					CvsBase.Visibility = Visibility.Collapsed;
 					CvsGraph.Visibility = Visibility.Collapsed;
+					CvsGrid.Visibility = Visibility.Collapsed;
 				}
 				else
 				{
 					OutputExpression.Visibility = Visibility.Collapsed;
+					Border.Visibility = Visibility.Visible;
+					CvsBase.Visibility = Visibility.Visible;
 					CvsGraph.Visibility = Visibility.Visible;
+					CvsGrid.Visibility = Visibility.Visible;
 				}
 			}
 			else if(e.Key == Key.D)
@@ -344,6 +362,8 @@ namespace FilterDesigner
 		{
 			CvsGraph.Width = Border.ActualWidth - 4;
 			CvsGraph.Height = Border.ActualHeight - 4;
+			CvsGrid.Width = Border.ActualWidth - 4;
+			CvsGrid.Height = Border.ActualHeight - 4;
 			Draw();
 		}
 
@@ -480,7 +500,7 @@ namespace FilterDesigner
 				result += string.Format("{0:#.##}\xB7", mantisse);
 			}
 			if(exponent != 0)
-			{	
+			{
 				result += string.Format("10{0}", StrToSuperscript(string.Format("{0:##}", exponent)));
 			}
 			if(result == "")
@@ -544,6 +564,121 @@ namespace FilterDesigner
 		private void OutputWindow_Closed(object sender, EventArgs e)
 		{
 			lcvd.Close();
+		}
+
+		private void Canvas_MouseDown(object sender, MouseButtonEventArgs e)
+		{
+			mouseClick = e.GetPosition(CvsGraph);
+			if(e.ChangedButton == MouseButton.Left)
+			{
+				double frequency = XCoordinateToFrequency(mouseClick.X);
+				double magnitude = YCoordinateToMagnitude(mouseClick.Y);
+				//MessageBox.Show($"Click:\nx: {mouseClick.X}\ny: {mouseClick.Y}\nf  : {Component.PrintValue(frequency)}Hz\nA : {magnitude:#0.##} dB");
+				if(selectionRectangle == null)
+				{
+					selectionRectangle = new Rectangle
+					{
+						Fill = Brushes.LightBlue,
+						Opacity = 0.5
+					};
+				}
+			}
+			else
+			{
+
+			}
+		}
+
+		private void Canvas_MouseUp(object sender, MouseButtonEventArgs e)
+		{
+			Point newMousePos = e.GetPosition(CvsGraph);
+			if(selectionRectangle != null && CvsBase.Children.Contains(selectionRectangle))
+			{
+				CvsBase.Children.Remove(selectionRectangle);
+			}
+			if(mouseClick.X != -1 && mouseClick.Y != -1)
+			{
+				double leftX = Math.Min(mouseClick.X, newMousePos.X);
+				double rightX = Math.Max(mouseClick.X, newMousePos.X);
+				double lowY = Math.Max(mouseClick.Y, newMousePos.Y);
+				double highY = Math.Min(mouseClick.Y, newMousePos.Y);
+				double newXMin = xMin;
+				double newXMax = xMax;
+				double newYMin = yMin;
+				double newYMax = yMax;
+				if(leftX != rightX && leftX > 0)
+				{
+					newXMin = Math.Log10(XCoordinateToFrequency(leftX));
+					newXMax = Math.Log10(XCoordinateToFrequency(rightX));
+				}
+				if(lowY != highY && highY > 0)
+				{
+					newYMin = YCoordinateToMagnitude(lowY);
+					newYMax = YCoordinateToMagnitude(highY);
+				}
+				xMin = newXMin;
+				xMax = newXMax;
+				yMin = newYMin;
+				yMax = newYMax;
+				mouseClick.X = -1;
+				mouseClick.Y = -1;
+				Draw();
+			}
+		}
+
+		Rectangle selectionRectangle;
+		private void OutputWindow_MouseMove(object sender, MouseEventArgs e)
+		{
+			Point mouse = e.GetPosition(CvsGraph);
+			double frequency = XCoordinateToFrequency(mouse.X);
+			double magnitude = YCoordinateToMagnitude(mouse.Y);
+			TbMousePos.Text = $"f  : {Component.PrintValue(frequency)}Hz\nA : {magnitude:#0.##}dB";
+
+			if(mouseClick.X != -1 && mouseClick.Y != -1 && selectionRectangle != null)
+			{
+				//Draw Rectangle
+				if(CvsBase.Children.Contains(selectionRectangle) && !Mouse.LeftButton.HasFlag(MouseButtonState.Pressed))
+				{
+					CvsBase.Children.Remove(selectionRectangle);
+				}
+				else if(!CvsBase.Children.Contains(selectionRectangle) && Mouse.LeftButton.HasFlag(MouseButtonState.Pressed))
+				{
+					CvsBase.Children.Add(selectionRectangle);
+				}
+				selectionRectangle.Width = Math.Abs(mouse.X - mouseClick.X);
+				selectionRectangle.Height = Math.Abs(mouse.Y - mouseClick.Y);
+				Canvas.SetLeft(selectionRectangle, Math.Min(mouseClick.X, mouse.X) + Canvas.GetLeft(CvsGraph));
+				Canvas.SetTop(selectionRectangle, Math.Min(mouseClick.Y, mouse.Y) + Canvas.GetTop(CvsGraph));
+			}
+			else
+			{
+				if(CvsBase.Children.Contains(selectionRectangle))
+					CvsBase.Children.Remove(selectionRectangle);
+			}
+		}
+
+		private void Canvas_MouseWheel(object sender, MouseWheelEventArgs e)
+		{
+			//TbMousePos.Text = e.Delta.ToString();
+			Point currentPos = e.GetPosition(CvsGraph);
+			double currentFreq = XCoordinateToFrequency(currentPos.X);
+			double currentMagn = YCoordinateToMagnitude(currentPos.Y);
+			double dx = xMax - xMin;
+			double dy = yMax - yMin;
+			double factor = 1.2;
+			if(e.Delta > 0)
+				factor = 1 / factor;
+
+			double xMin2 = Math.Log10(currentFreq) - factor * currentPos.X / CvsGraph.ActualWidth * dx;
+			double xMax2 = xMin2 + factor * dx;
+			double yMin2 = currentMagn - factor * (1 - currentPos.Y / CvsGraph.ActualHeight) * dy;
+			double yMax2 = yMin2 + factor * dy;
+
+			xMin = xMin2;
+			xMax = xMax2;
+			yMin = yMin2;
+			yMax = yMax2;
+			Draw();
 		}
 	}
 }
