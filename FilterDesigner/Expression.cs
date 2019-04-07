@@ -119,7 +119,7 @@ namespace FilterDesigner
 		
 		public abstract Expression ToCommonDenominator();
 
-		public abstract Expression ToStandardForm(); // bool topLevel = true
+		public abstract Expression ToStandardForm(bool topLevel = false);
 
 		public abstract Expression ReplaceChild(Expression oldChild, Expression newChild);
 
@@ -150,35 +150,35 @@ namespace FilterDesigner
 			//	return false;
 			//}
 			//return value.Equals(other.ToString());
-			
+
 			// Maybe Immediately deal with contained Fractions? (To speed up the comparison) 
 
 			exp1 = exp1.Unpack();
 			exp2 = exp2.Unpack();
 			if(exp1 is Product)
 			{
-				exp1 = exp1.ToCommonDenominator().ToStandardForm();
+				exp1 = exp1.ToCommonDenominator().ToStandardForm(true);
 			}
 			else
 			{
-				exp1 = exp1.ToStandardForm();
+				exp1 = exp1.ToStandardForm(true);
 			}
 			if(exp2 is Product)
 			{
-				exp2 = exp2.ToCommonDenominator().ToStandardForm();
+				exp2 = exp2.ToCommonDenominator().ToStandardForm(true);
 			}
 			else
 			{
-				exp2 = exp2.ToStandardForm();
+				exp2 = exp2.ToStandardForm(true);
 			}
 
 			if(exp1 is Product)
 			{
-				exp1 = (exp1 as Product).ToSum().Unpack().ToStandardForm();
+				exp1 = (exp1 as Product).ToSum().Unpack().ToStandardForm(true);
 			}
 			if(exp2 is Product)
 			{
-				exp2 = (exp2 as Product).ToSum().Unpack().ToStandardForm();
+				exp2 = (exp2 as Product).ToSum().Unpack().ToStandardForm(true);
 			}
 
 			if(exp1 is Division && exp2 is Division)
@@ -331,7 +331,7 @@ namespace FilterDesigner
 					return null;
 				Expression temp = copy.Summands[index].FactorOut(anchor)?.Unpack();
 				result.AddSummand(temp);
-				temp = s2.Multiply(temp);
+				temp = s2.Multiply(temp, true);
 				temp = copy.Subtract(temp);
 				if(temp is Sum)
 				{
@@ -350,7 +350,7 @@ namespace FilterDesigner
 			return result;
 		}
 
-		public virtual Expression Multiply(Expression factor)
+		public virtual Expression Multiply(Expression factor, bool distribute = false)
 		{
 			Product p = new Product();
 			p.AddFactor(this);
@@ -633,11 +633,11 @@ namespace FilterDesigner
 			return copy;
 		}
 
-		public override Expression Multiply(Expression factor)
+		public override Expression Multiply(Expression factor, bool distribute = false)
 		{
 			Sum copy = Copy() as Sum;
 			//if(copy.Summands.All(s => !s.GetDenominators().Any(d => d.ContainsFactor(factor))))
-			if(!copy.GetDenominators().Contains(factor))
+			if(!copy.GetDenominators().Contains(factor) && !distribute)
 			{
 				//return base.Multiply(factor);
 				return copy * factor;
@@ -679,58 +679,58 @@ namespace FilterDesigner
 			return result;
 		}
 
-		public override Expression ToStandardForm()
+		public override Expression ToStandardForm(bool topLevel = false)
 		{ // Standardform is a sum of final products, divisions & valueexpressions
 		  //if(ContainsFraction()) return ToCommonDenominator().ToStandardForm();
 			Sum copy = Copy() as Sum;
 			do
 			{
-				if(copy.Summands.Count(s => s.IsConst()) > 1)
-				{
-					double constSummand = 0;
-					copy.Summands.ForEach(s =>
-					{
-						if(s.IsConst())
-						{
-							constSummand += (s.ToStandardForm() as ConstExpression).Value;
-						}
-					});
-					copy.Summands.RemoveAll(s => s.IsConst());
-					copy.Summands.Add(new ConstExpression(constSummand));
-				}
+				if(copy.Summands.Count(s => s.IsConst()) > 1)									// Sum up Constants
+				{																				//
+					double constSummand = 0;													//
+					copy.Summands.ForEach(s =>													//
+					{																			//
+						if(s.IsConst())															//
+						{																		//
+							constSummand += (s.ToStandardForm() as ConstExpression).Value;		//
+						}																		//
+					});																			//
+					copy.Summands.RemoveAll(s => s.IsConst());									//
+					copy.Summands.Add(new ConstExpression(constSummand));						//
+				}																				//
 
-				for(int i = 0; i < copy.Summands.Count; i++)
-				{
-					copy.Summands[i] = copy.Summands[i].Unpack().ToStandardForm();
+				for(int i = 0; i < copy.Summands.Count; i++)									// Convert Summands
+				{																				// to Standardform
+					copy.Summands[i] = copy.Summands[i].Unpack().ToStandardForm();				//
 				}
-				while(copy.Summands.Any(s => s is Sum))
-				{
-					int index = copy.Summands.FindIndex(s => s is Sum);
-					Sum sum = copy.Summands[index] as Sum;
-					copy.Summands.RemoveAt(index);
-					copy = copy.Merge(sum) as Sum;
-				}
-				List<Product> lp = copy.Summands.Where(s => s is Product && !s.IsFinal()).Cast<Product>().ToList();
-				for(int i = 0; i < lp.Count; i++)
-				{ // Product contains Sums,Products&ValueExpressions
-					Expression stExp = lp[i].ToStandardForm();
-					if(stExp is Sum)
-					{
-						copy = copy.ReplaceChild(lp[i], stExp as Sum) as Sum;
-					}
-					else if(stExp is Product)
-					{
-						copy = copy.ReplaceChild(lp[i], (stExp as Product).ToSum()) as Sum;
-					}
-				}
+				while(copy.Summands.Any(s => s is Sum))											// Unpack
+				{																				// contained
+					int index = copy.Summands.FindIndex(s => s is Sum);							// Sums
+					Sum sum = copy.Summands[index] as Sum;										//
+					copy.Summands.RemoveAt(index);												//
+					copy = copy.Merge(sum) as Sum;												//
+				}																				//
+				List<Product> lp = copy.Summands.Where(s => s is Product && !s.IsFinal()).Cast<Product>().ToList();	// Convert
+				for(int i = 0; i < lp.Count; i++)																	// Products
+				{ // Product contains Sums,Products&ValueExpressions												// which
+					Expression stExp = lp[i].ToStandardForm(topLevel);												// contain
+					if(stExp is Sum)																				// Sums
+					{																								// to Sums
+						copy = copy.ReplaceChild(lp[i], stExp as Sum) as Sum;										// and
+					}																								// merge
+					else if(stExp is Product)																		// them
+					{																								//
+						copy = copy.ReplaceChild(lp[i], (stExp as Product).ToSum().ToStandardForm(topLevel)) as Sum;//
+					}																								//
+				}																									//
 			} while(!copy.Summands.All(e => (e is Product || e is ValueExpression || e is Division)));
-
-			while(Summands.Any(s => s is Product && (s as Product).Factors.Any(f => !(f is S_Block) && f.DeepContains(e => e is S_Block))))
+			// copy.Summands was missing?
+			while(copy.Summands.Any(s => s is Product && (s as Product).Factors.Any(f => !(f is S_Block) && f.DeepContains(e => e is S_Block))))
 			{
-				for(int i = 0; i<Summands.Count; i++)
+				for(int i = 0; i< copy.Summands.Count; i++)
 				{
-					if(Summands[i] is Product && (Summands[i] as Product).Factors.Any(f => !(f is S_Block) && f.DeepContains(e => e is S_Block)))
-						Summands[i] = (Summands[i] as Product).ToSum().ToStandardForm();
+					if(copy.Summands[i] is Product && (copy.Summands[i] as Product).Factors.Any(f => !(f is S_Block) && f.DeepContains(e => e is S_Block)))
+						copy.Summands[i] = (copy.Summands[i] as Product).ToSum().ToStandardForm();
 				}
 			}
 
@@ -1312,7 +1312,7 @@ namespace FilterDesigner
 			return copy;
 		}
 
-		public override Expression Multiply(Expression factor)
+		public override Expression Multiply(Expression factor, bool _ = false)
 		{
 			Product copy = Copy() as Product;
 			if(factor is Product)
@@ -1386,7 +1386,7 @@ namespace FilterDesigner
 			};
 		}
 
-		public override Expression ToStandardForm()
+		public override Expression ToStandardForm(bool topLevel = false)
 		{ // Standardform is a product of sums and reduced ValueExpressions
 			Product result = Copy() as Product;
 			do
@@ -1418,7 +1418,7 @@ namespace FilterDesigner
 							num.AddFactor(factor);
 						}
 					}
-					return new Division(num, den).ToStandardForm();
+					return new Division(num, den).ToStandardForm(topLevel);
 				}
 
 				int s_count = 0;
@@ -1900,7 +1900,7 @@ namespace FilterDesigner
 			return copy;
 		}
 
-		public override Expression Multiply(Expression factor)
+		public override Expression Multiply(Expression factor, bool _ = false)
 		{
 			Division copy = Copy() as Division;
 			if(copy.Denominator.Equals(factor))
@@ -1969,19 +1969,19 @@ namespace FilterDesigner
 			return Numerator is ValueExpression && Denominator is ValueExpression;
 		}
 
-		public override Expression ToStandardForm()
+		public override Expression ToStandardForm(bool topLevel = false)
 		{
 			if(Numerator.IsConst() && Denominator.IsConst())
 			{
-				ConstExpression num = Numerator.ToStandardForm() as ConstExpression;
-				ConstExpression den = Denominator.ToStandardForm() as ConstExpression;
+				ConstExpression num = Numerator.ToStandardForm(topLevel) as ConstExpression;
+				ConstExpression den = Denominator.ToStandardForm(topLevel) as ConstExpression;
 				return new ConstExpression(num.Value / den.Value);
 			}
 			Division copy = Copy() as Division;
 			do
 			{
-				copy.Numerator = copy.Numerator.Unpack().ToStandardForm();
-				copy.Denominator = copy.Denominator.Unpack().ToStandardForm();
+				copy.Numerator = copy.Numerator.Unpack().ToStandardForm(topLevel);
+				copy.Denominator = copy.Denominator.Unpack().ToStandardForm(topLevel);
 
 				if(copy.Numerator is Division || copy.Denominator is Division)
 				{
@@ -2001,8 +2001,8 @@ namespace FilterDesigner
 						copy.Numerator = copy.Numerator.Multiply((copy.Denominator as Division).Denominator);
 						copy.Denominator = (copy.Denominator as Division).Numerator;
 					}
-					copy.Numerator = copy.Numerator.Unpack().ToStandardForm();
-					copy.Denominator = copy.Denominator.Unpack().ToStandardForm();
+					copy.Numerator = copy.Numerator.Unpack().ToStandardForm(topLevel);
+					copy.Denominator = copy.Denominator.Unpack().ToStandardForm(topLevel);
 				}
 
 				List<Expression> numFactors;
@@ -2038,7 +2038,7 @@ namespace FilterDesigner
 
 					if(denProd.Factors.Count == 0)
 					{
-						return copy.Numerator.ToStandardForm();
+						return copy.Numerator.ToStandardForm(topLevel);
 					}
 					else if(denProd.Factors.Count == 1)
 					{
@@ -2058,14 +2058,14 @@ namespace FilterDesigner
 					}
 					else if(numFactors.Count == 1)
 					{
-						return numFactors[0].ToStandardForm();
+						return numFactors[0].ToStandardForm(topLevel);
 					}
 					else
 					{
 						return new Product(numFactors);
 					}
 				}
-				if(copy.Denominator.Equals(1)) return copy.Numerator.ToStandardForm();
+				if(copy.Denominator.Equals(1)) return copy.Numerator.ToStandardForm(topLevel);
 
 				
 				List<Expression> dens = new List<Expression>();
@@ -2077,26 +2077,24 @@ namespace FilterDesigner
 				{
 					copy.Numerator = copy.Numerator.Multiply(factor);
 					copy.Denominator = copy.Denominator.Multiply(factor);
-					//copy.Numerator = copy.Numerator * factor;
-					//copy.Denominator = copy.Denominator * factor;
 				}
 				if(dens.Count > 0)
 				{
-					copy.Numerator = copy.Numerator.ToStandardForm();
-					copy.Denominator = copy.Denominator.ToStandardForm();
+					copy.Numerator = copy.Numerator.ToStandardForm(topLevel);
+					copy.Denominator = copy.Denominator.ToStandardForm(topLevel);
 				}
 			} while(copy.Numerator.ContainsFraction() || copy.Denominator.ContainsFraction());
 			if(copy.Denominator.Equals(1))
 			{
-				return copy.Numerator.ToStandardForm();
+				return copy.Numerator.ToStandardForm(topLevel);
 			}
-			if(copy.Numerator is Product && baseExpression)
+			if(copy.Numerator is Product && topLevel)
 			{
-				copy.Numerator = (copy.Numerator as Product).ToSum().ToStandardForm();
+				copy.Numerator = (copy.Numerator as Product).ToSum().ToStandardForm(topLevel);
 			}
-			if(copy.Denominator is Product)
+			if(copy.Denominator is Product && topLevel)
 			{
-				copy.Denominator = (copy.Denominator as Product).ToSum().ToStandardForm();
+				copy.Denominator = (copy.Denominator as Product).ToSum().ToStandardForm(topLevel);
 			}
 			if(copy.Denominator.Equals(copy.Numerator))
 			{
@@ -2225,7 +2223,7 @@ namespace FilterDesigner
 			return true;
 		}
 
-		public override Expression ToStandardForm()
+		public override Expression ToStandardForm(bool topLevel = false)
 		{
 			return this;
 		}
@@ -2235,7 +2233,7 @@ namespace FilterDesigner
 			return this;
 		}
 
-		public override Expression Multiply(Expression factor)
+		public override Expression Multiply(Expression factor, bool _ = false)
 		{
 			if(Is1())
 			{
@@ -2505,7 +2503,7 @@ namespace FilterDesigner
 				return $"s^{{{Exponent}}}";
 		}
 		
-		public override Expression ToStandardForm()
+		public override Expression ToStandardForm(bool topLevel = false)
 		{
 			if(Exponent == 0)
 				return new ConstExpression(1);

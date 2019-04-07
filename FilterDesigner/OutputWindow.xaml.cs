@@ -43,8 +43,9 @@ namespace FilterDesigner
 
 		public OutputWindow(Expression function)
 		{
-			Function = function.ToCommonDenominator();
-			Function = Function.ToStandardForm();
+			Function = (function as Sum)?.ToCommonDenominator() ?? function;
+			Function = Function.ToStandardForm(true);
+			
 			InitializeComponent();
 			CvsGraph.Visibility = Visibility.Visible;
 			OutputExpression.Visibility = Visibility.Collapsed;
@@ -77,7 +78,7 @@ namespace FilterDesigner
 			}
 			else
 			{
-				result = Function?.EvaluateToConst()?.ToStandardForm();
+				result = Function?.EvaluateToConst()?.ToStandardForm(true);
 			}
 			if(!result.IsConst() || !double.IsPositiveInfinity((Function as ConstExpression)?.Value ?? 0))
 			{

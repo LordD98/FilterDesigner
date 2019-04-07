@@ -187,7 +187,7 @@ namespace FilterDesigner.UnitTests
 			Expression exp = 1 / (2 * (1 + 1 / s));
 			Expression expected = s / (2 * s + 2);
 			
-			exp = exp.ToStandardForm();
+			exp = exp.ToStandardForm(true);
 
 			Assert.AreEqual(exp.Evaluate(), expected.Evaluate());
 		}
@@ -204,7 +204,7 @@ namespace FilterDesigner.UnitTests
 			Expression C = new ComponentExpression("C");
 			Expression s = Expression.S;
 			Expression exp1 = s * C * (1 / (s * C));
-			Expression exp2 = exp1.ToStandardForm();
+			Expression exp2 = exp1.ToStandardForm(true);
 
 			Assert.IsTrue(exp1.Equals(1) && exp2.Equals(1));
 			Assert.AreEqual(exp2.Evaluate(), "1");
@@ -228,7 +228,7 @@ namespace FilterDesigner.UnitTests
 			Expression s3 = new S_Block(3);
 			Expression s6 = new S_Block(6);
 			Expression exp1 = (s6 * C + s3 * C * C)/(s * s * C * C * C * s3 + s * s6 * C * C * C);
-			Expression exp2 = exp1.ToStandardForm();
+			Expression exp2 = exp1.ToStandardForm(true);
 			
 			Assert.AreEqual(exp2.Evaluate(), "(s^3+C)/(s^4*C*C+s^2*C*C)");
 
@@ -252,7 +252,7 @@ namespace FilterDesigner.UnitTests
 			Expression s = Expression.S;
 			Division exp1 = (s * C * (1 / R + 1 / (s * L)) * 1 / (s * C) + s * C * (1 / R + 1 / (s * L)) * 1 / (1 / R + 1 / (s * L))) / (s * C * (1 / R + 1 / (s * L)));
 			string expected = "(s^2*R*C*L+s*L+R)/(s^2*C*L+s*R*C)";
-			Expression exp2 = exp1.ToStandardForm();
+			Expression exp2 = exp1.ToStandardForm(true);
 
 			Assert.AreEqual(exp1, exp2);
 			Assert.AreEqual(exp2.Evaluate(), expected);
@@ -270,7 +270,7 @@ namespace FilterDesigner.UnitTests
 			Expression exp = 1 + s + s*4*s*s + 3*s + s*(s*C2)*s;
 			string expected = "s^3*(4+C2)+4*s+1";
 
-			exp = exp.ToStandardForm();
+			exp = exp.ToStandardForm(true);
 
 			Assert.AreEqual(exp.Evaluate(), expected);
 		}
@@ -292,7 +292,7 @@ namespace FilterDesigner.UnitTests
 			Expression exp2 = (s * C * L + R * C + 1) / (s * C);
 
 			Expression exp3 = exp1.ToCommonDenominator();
-			exp3 = exp3.ToStandardForm();
+			exp3 = exp3.ToStandardForm(true);
 
 			Assert.AreEqual(exp3.Evaluate(), exp2.Evaluate());
 
@@ -316,14 +316,14 @@ namespace FilterDesigner.UnitTests
 			Expression.SumOrder = Sum_Order.S2_S;
 			Expression.ProductOrder = Product_Order._2SC;
 			Expression.ComponentOrder = Component_Order.RCL;
-			Expression exp2 = exp1.ToCommonDenominator().ToStandardForm();
+			Expression exp2 = exp1.ToCommonDenominator().ToStandardForm(true);
 			Expression.ComponentOrder = Component_Order.RLC;
-			Expression exp3 = exp2.ToStandardForm();
+			Expression exp3 = exp2.ToStandardForm(true);
 			Expression.SumOrder = Sum_Order.S_S2;
 			Expression.ComponentOrder = Component_Order.RCL;
-			Expression exp4 = exp2.ToStandardForm();
+			Expression exp4 = exp2.ToStandardForm(true);
 			Expression.ComponentOrder = Component_Order.RLC;
-			Expression exp5 = exp2.ToStandardForm();
+			Expression exp5 = exp2.ToStandardForm(true);
 			string expected1 = "(s^2*R*C*L+s*L+R)/(s^2*C*L+s*R*C)";
 			string expected2 = "(s^2*R*L*C+s*L+R)/(s^2*L*C+s*R*C)";
 			string expected3 = "(R+s*L+s^2*R*C*L)/(s*R*C+s^2*C*L)";
@@ -345,9 +345,9 @@ namespace FilterDesigner.UnitTests
 			Expression exp2 = new ConstExpression(3) * (1 * (3 * (4 * new ConstExpression(7))));
 			Expression exp3 = 1 + 1 / new ConstExpression(3) + 1 + 6 * (3 * (4 * new ConstExpression(7)));
 
-			double result1 = (exp1.ToStandardForm() as ConstExpression).Value;
-			double result2 = (exp2.ToStandardForm() as ConstExpression).Value;
-			double result3 = (exp3.ToStandardForm() as ConstExpression).Value;
+			double result1 = (exp1.ToStandardForm(true) as ConstExpression).Value;
+			double result2 = (exp2.ToStandardForm(true) as ConstExpression).Value;
+			double result3 = (exp3.ToStandardForm(true) as ConstExpression).Value;
 
 			Assert.AreEqual(result1, 1.0 / 63.0);
 			Assert.AreEqual(result2, 252);
@@ -358,13 +358,13 @@ namespace FilterDesigner.UnitTests
 		public void ComplicatedBug_Test1()
 		{
 			Expression s = Expression.S;
-			ComponentExpression C1 = new ComponentExpression("C1"); 
-			ComponentExpression R1 = new ComponentExpression("R1"); 
-			ComponentExpression R2 = new ComponentExpression("R2"); 
+			ComponentExpression C1 = new ComponentExpression("C1");
+			ComponentExpression R1 = new ComponentExpression("R1");
+			ComponentExpression R2 = new ComponentExpression("R2");
 			ComponentExpression R3 = new ComponentExpression("R3");
-			Expression exp1 = (1 / (s * C1)) / (R2 + 1 / (s * C1)) * (1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3))) / (R1 + 1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3)));
-			Expression exp2 = R3 / (s * C1 * (R1 * R2 + R1 * R3 + R2 * R3) + R1 + R3);
-			Expression exp3 = exp1.ToStandardForm();	// Issue here, see debug
+			Expression exp1 = ((1 / (s * C1)) / (R2 + 1 / (s * C1))) * ((1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3))) / (R1 + 1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3))));
+			Expression exp2 = R3 / (s * (R3 * R2 * C1 + R1 * R3 * C1 + R1 * R2 * C1) + R1 + R3);
+			Expression exp3 = exp1.ToStandardForm(true);
 
 			Assert.AreEqual(exp1, exp2);
 			Assert.AreEqual(exp1, exp3);
@@ -376,12 +376,30 @@ namespace FilterDesigner.UnitTests
 		public void ComplicatedBug_Test2()
 		{
 			Expression s = Expression.S;
+			ComponentExpression C1 = new ComponentExpression("C1"); 
+			ComponentExpression R1 = new ComponentExpression("R1"); 
+			ComponentExpression R2 = new ComponentExpression("R2"); 
+			ComponentExpression R3 = new ComponentExpression("R3");
+			Expression exp1 = (1 / (s * C1)) / (R2 + 1 / (s * C1)) * (1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3))) / (R1 + 1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3)));
+			Expression exp2 = R3 / (s * (R3 * R2 * C1 + R1 * R3 * C1 + R1 * R2 * C1) + R1 + R3);
+			Expression exp3 = exp1.ToStandardForm(true);
+
+			Assert.AreEqual(exp1, exp2);
+			Assert.AreEqual(exp1, exp3);
+			Assert.AreEqual(exp2, exp3);
+			Assert.AreEqual(exp3.Evaluate(), exp2.Evaluate());
+		}
+
+		[TestMethod]
+		public void ComplicatedBug_Test3()
+		{
+			Expression s = Expression.S;
 			Expression s2 = new S_Block(2);
 			Expression s3 = new S_Block(3);
 			Expression s4 = new S_Block(4);
 			Expression exp1 = (1 / s) / (1 + 1 / s) * (1 / (1 / (1 + 1 / s) + 1)) / (1 + 1 / (1 / (1 + 1 / s) + 1));
 			Expression exp2 = 1 / (s * 1 * (1 * 1 + 1 * 1 + 1 * 1) + 1 + 1);
-			Expression exp3 = exp1.ToStandardForm();
+			Expression exp3 = exp1.ToStandardForm(true);
 			Expression exp4 = (2 * s3 + 3 * s2 + s) / (6 * s4 + 13 * s3 + 9 * s2 + 2 * s);
 			Assert.AreEqual(exp1, exp2);
 			Assert.AreEqual(exp1, exp3);
@@ -390,7 +408,7 @@ namespace FilterDesigner.UnitTests
 		}
 
 		[TestMethod]
-		public void ComplicatedBug_Test3()
+		public void ComplicatedBug_Test4()
 		{
 			Expression s = Expression.S;
 			Expression s2 = new S_Block(2);
@@ -405,7 +423,7 @@ namespace FilterDesigner.UnitTests
 			Expression exp2 = R3 / (s * (R3 * C1 + R2 * C1) + 1);
 			Expression exp3 = (s * C1 * R2 * R3 + R3) / (s2 * (C1 * C1 * R2 * R3 + C1 * C1 * R2 * R2) + s * (C1 * R2 + C1 * R2 + C1 * R3) + 1);
 
-			Expression res1 = exp1.ToStandardForm();
+			Expression res1 = exp1.ToStandardForm(true);
 
 			Assert.AreEqual(exp1, exp2);
 			Assert.AreEqual(res1, exp2);
@@ -425,7 +443,7 @@ namespace FilterDesigner.UnitTests
 			Product exp2 = (s + 1) * (s + 1) as Product;
 			Expression exp3 = exp2.ToSum(); 
 
-			string result1 = exp1.ToStandardForm().Evaluate();
+			string result1 = exp1.ToStandardForm(true).Evaluate();
 			string result2 = exp3.Evaluate();
 
 			Assert.AreEqual(result1, "s^2+2*s+1");
@@ -489,12 +507,12 @@ namespace FilterDesigner.UnitTests
 			bool result1 = exp1.IsConst();
 			bool result2 = exp2.IsConst();
 			bool result3 = exp3.IsConst();
-			bool result4 = exp1.ToStandardForm() is ConstExpression;
-			bool result5 = exp2.ToStandardForm() is ConstExpression;
-			bool result6 = exp3.ToStandardForm() is ConstExpression;
-			double result7 = (exp1.ToStandardForm() as ConstExpression).Value;
-			double result8 = (exp2.ToStandardForm() as ConstExpression).Value;
-			double result9 = (exp3.ToStandardForm() as ConstExpression).Value;
+			bool result4 = exp1.ToStandardForm(true) is ConstExpression;
+			bool result5 = exp2.ToStandardForm(true) is ConstExpression;
+			bool result6 = exp3.ToStandardForm(true) is ConstExpression;
+			double result7 = (exp1.ToStandardForm(true) as ConstExpression).Value;
+			double result8 = (exp2.ToStandardForm(true) as ConstExpression).Value;
+			double result9 = (exp3.ToStandardForm(true) as ConstExpression).Value;
 
 
 			Assert.IsTrue(result1);
@@ -692,7 +710,7 @@ namespace FilterDesigner.UnitTests
 			Expression expected2 = s;
 			Sum expected3 = s + C2 as Sum;
 
-			Sum result1 = Expression.PolynomialDivision(s1, new Sum(s)) as Sum;
+			Sum result1 = Expression.PolynomialDivision(s1, s) as Sum;
 			Expression result2 = Expression.PolynomialDivision(s1, expected1);
 			Sum result3 = Expression.PolynomialDivision(s2, s + C1) as Sum;
 

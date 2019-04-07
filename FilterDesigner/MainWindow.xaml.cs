@@ -17,14 +17,17 @@ using static FilterDesigner.MainWindow;
 namespace FilterDesigner
 {
 	// TODO:
-	// Rectangle Selecting: on Move+Ctrl snap to bigger difference
+	// Component value slider zero at left and correct display after load
+	// & Textbox value edit remove autocomplete
+	// Outputwindow no owner & handle close event manually
 	// Factor out complex expressions by polynomial division
-	// Merge branchpoints, delete lines and split nets
+	// Merge branchpoints, delete components & lines and split nets
 	//
 	// Bugs:
 	// Zoom in deep, then be able to zoom out again
 	// 
 	// Less important:
+	// Expresssion ToStandardForm() more topLevel queries
 	// Parse 1k2 (as example)
 	// Add copy to clipboard button in OutputWindow
 	// Visual effect: Evaluate R1*R1 => R1^2
