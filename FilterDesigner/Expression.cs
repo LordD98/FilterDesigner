@@ -111,14 +111,15 @@ namespace FilterDesigner
 		public abstract Impedance EvaluateImpedance(double frequency);
 		public abstract string Evaluate();
 		public abstract string EvaluateLaTeX();
+		public abstract Expression EvaluateToConst();
 
 		public abstract bool ContainsFraction();
 
 		public abstract bool IsFinal();
-
+		
 		public abstract Expression ToCommonDenominator();
 
-		public abstract Expression ToStandardForm();
+		public abstract Expression ToStandardForm(); // bool topLevel = true
 
 		public abstract Expression ReplaceChild(Expression oldChild, Expression newChild);
 
@@ -310,6 +311,11 @@ namespace FilterDesigner
 
 		public abstract Expression FactorOut(Expression factor);
 
+		public static Expression PolynomialDivision(Sum s1, Expression e2)
+		{
+			return PolynomialDivision(s1, new Sum(e2));
+		}
+
 		public static Expression PolynomialDivision(Sum s1, Sum s2)
 		{
 			if(s1 == null || s2 == null || s1.Summands.Count == 0 || s2.Summands.Count == 0)
@@ -347,8 +353,8 @@ namespace FilterDesigner
 		public virtual Expression Multiply(Expression factor)
 		{
 			Product p = new Product();
-			p.AddFactor(factor.Copy());
 			p.AddFactor(this);
+			p.AddFactor(factor.Copy());
 			return p;
 		}
 
@@ -555,6 +561,26 @@ namespace FilterDesigner
 			return result.Substring(1);
 		}
 
+		public override Expression EvaluateToConst()
+		{
+			if(!AllValuesSet())
+				return null;
+			Sum result = new Sum();
+			double value = 0;
+			foreach(Expression exp in Summands)
+			{
+				Expression summand = exp.EvaluateToConst();
+				if(summand is ConstExpression)   // factor.IsConst()
+					value += (summand as ConstExpression).Value;
+				else
+					result.Summands.Add(exp.EvaluateToConst());
+			}
+			if(result.Summands.Count == 0)
+				return new ConstExpression(value);
+			result.Summands.Add(new ConstExpression(value));
+			return result;
+		}
+
 		public void AddSummand(Expression exp, int index = -1)
 		{
 			if(index == -1) index = Summands.Count;
@@ -610,6 +636,12 @@ namespace FilterDesigner
 		public override Expression Multiply(Expression factor)
 		{
 			Sum copy = Copy() as Sum;
+			//if(copy.Summands.All(s => !s.GetDenominators().Any(d => d.ContainsFactor(factor))))
+			if(!copy.GetDenominators().Contains(factor))
+			{
+				//return base.Multiply(factor);
+				return copy * factor;
+			}
 			for(int i = 0; i < copy.Summands.Count; i++)
 			{
 				copy.Summands[i] = copy.Summands[i].Multiply(factor);
@@ -1221,6 +1253,26 @@ namespace FilterDesigner
 			return result;
 		}
 
+		public override Expression EvaluateToConst()
+		{
+			if(!AllValuesSet())
+				return null;
+			Product result = new Product();
+			double value = 1;
+			foreach(Expression exp in Factors)
+			{
+				Expression factor = exp.EvaluateToConst();
+				if(factor is ConstExpression)	// factor.IsConst()
+					value *= (factor as ConstExpression).Value;
+				else
+					result.Factors.Add(exp.EvaluateToConst());
+			}
+			if(result.Factors.Count == 0)
+				return new ConstExpression(value);
+			result.Factors.Add(new ConstExpression(value));
+			return result;
+		}
+
 		public void AddFactor(Expression exp)
 		{
 			if(exp is Product)
@@ -1341,7 +1393,7 @@ namespace FilterDesigner
 			{
 				for(int i = 0; i < result.Factors.Count; i++)
 				{
-					result.Factors[i] = result.Factors[i].Unpack().ToStandardForm();
+					result.Factors[i] = result.Factors[i].Unpack().ToStandardForm(); //Debug test1 slow here
 				}
 				while(result.Factors.Any(s => s is Product))
 				{
@@ -1784,6 +1836,32 @@ namespace FilterDesigner
 			return $"\\frac{{{Numerator.EvaluateLaTeX()}}}{{{Denominator.Evaluate()}}}";
 		}
 
+		public override Expression EvaluateToConst()
+		{
+			if(!AllValuesSet())
+				return null;
+			Expression num = Numerator.EvaluateToConst();
+			Expression den = Denominator.EvaluateToConst();
+			if(den is ConstExpression && num is ConstExpression)
+			{
+				return new ConstExpression((num as ConstExpression).Value / (den as ConstExpression).Value);
+			}
+			//if(den is ConstExpression)
+			//{
+			//	return (new Product(num, new ConstExpression(1 / (den as ConstExpression).Value))).EvaluateToConst();
+			//}
+			//if(num is ConstExpression)
+			//{
+			//	return (new Product(num, new ConstExpression(1 / (den as ConstExpression).Value))).EvaluateToConst();
+			//}
+			Division result = new Division
+			{
+				Numerator = num,
+				Denominator = den
+			};
+			return result;
+		}
+
 		public override Expression ToCommonDenominator()
 		{
 			return this;
@@ -1999,6 +2077,8 @@ namespace FilterDesigner
 				{
 					copy.Numerator = copy.Numerator.Multiply(factor);
 					copy.Denominator = copy.Denominator.Multiply(factor);
+					//copy.Numerator = copy.Numerator * factor;
+					//copy.Denominator = copy.Denominator * factor;
 				}
 				if(dens.Count > 0)
 				{
@@ -2010,7 +2090,7 @@ namespace FilterDesigner
 			{
 				return copy.Numerator.ToStandardForm();
 			}
-			if(copy.Numerator is Product)
+			if(copy.Numerator is Product && baseExpression)
 			{
 				copy.Numerator = (copy.Numerator as Product).ToSum().ToStandardForm();
 			}
@@ -2082,6 +2162,11 @@ namespace FilterDesigner
 
 	public abstract class ValueExpression : Expression
 	{
+		public override Expression EvaluateToConst()
+		{
+			return Copy();
+		}
+
 		public sealed override Expression ToCommonDenominator()
 		{
 			return this;
@@ -2293,6 +2378,14 @@ namespace FilterDesigner
 			return Evaluate();
 		}
 
+		public override Expression EvaluateToConst()
+		{
+			if(!AllValuesSet())
+				return null;
+			else
+				return new ConstExpression(component.GetValue());
+		}
+
 		public override Expression Copy()
 		{
 			ComponentExpression copy = new ComponentExpression(component)
@@ -2341,7 +2434,7 @@ namespace FilterDesigner
 		{
 			return Value.ToString();
 		}
-
+		
 		public override Expression Copy()
 		{
 			return new ConstExpression(Value);
@@ -2402,9 +2495,16 @@ namespace FilterDesigner
 
 		public override string EvaluateLaTeX()
 		{
-			return Evaluate();
+			if(Exponent < 0)
+				return $"s^{{{Exponent}}}";
+			if(Exponent == 0)
+				return "1";
+			else if(Exponent == 1)
+				return "s";
+			else
+				return $"s^{{{Exponent}}}";
 		}
-
+		
 		public override Expression ToStandardForm()
 		{
 			if(Exponent == 0)

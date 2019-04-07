@@ -6,15 +6,17 @@
         xmlns:local="clr-namespace:FilterDesigner"
 		xmlns:LaTeX="clr-namespace:WpfMath.Controls;assembly=WpfMath"
         mc:Ignorable="d"
-        Title="Result" SizeToContent="WidthAndHeight" MinWidth="400" MinHeight="250" Icon="Symbol.png" KeyDown="OutputWindow_KeyDown" SizeChanged="OutputWindow_SizeChanged" Loaded="OnLoaded" Closed="OutputWindow_Closed" Height="484.333" Width="747.667" MouseMove="OutputWindow_MouseMove">
-	<Grid ClipToBounds="True" SnapsToDevicePixels="True">
-		<TextBlock x:Name="TbMousePos" TextWrapping="Wrap" Text="f  : 1kHz&#xA;A : 20dB" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,35,0" Height="30"/>
-		<LaTeX:FormulaControl x:Name="OutputExpression" Formula="\infty" VerticalAlignment="Center" Margin="20" HorizontalAlignment="Center"/>
-		<Border x:Name="Border" Margin="30" SnapsToDevicePixels="True" BorderThickness="3" BorderBrush="Black" Background="White" ClipToBounds="True" MouseDown="Canvas_MouseDown" MouseUp="Canvas_MouseUp" MouseWheel="Canvas_MouseWheel"/>
-		<TextBlock HorizontalAlignment="Right" Margin="0,0,6,30" TextWrapping="Wrap" Text="f/Hz" VerticalAlignment="Bottom" ClipToBounds="True"/>
-		<TextBlock HorizontalAlignment="Left" Margin="30,14,0,0" TextWrapping="Wrap" Text="A/dB" VerticalAlignment="Top" ClipToBounds="True"/>
-		<Canvas x:Name="CvsBase" Margin="0,0,0,-0.4" ClipToBounds="True" IsHitTestVisible="False"/>
-		<Canvas x:Name="CvsGrid" Canvas.Left="32" Canvas.Top="32" ClipToBounds="True" Margin="32" IsHitTestVisible="False"/>
-		<Canvas x:Name="CvsGraph" Canvas.Left="32" Canvas.Top="32" ClipToBounds="True" Margin="32" IsHitTestVisible="False"/>
+        Title="Result" MinWidth="400" MinHeight="250" Icon="Symbol.png" KeyDown="OutputWindow_KeyDown" SizeChanged="OutputWindow_SizeChanged" Loaded="OnLoaded" Closed="OutputWindow_Closed" Height="500" Width="800" MouseMove="OutputWindow_MouseMove" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" SnapsToDevicePixels="True" Activated="OutputWindow_Activated" Background="#FFE0E0E0" LocationChanged="OutputWindow_LocationChanged">
+	<Grid x:Name="GrdMain" ClipToBounds="True" SnapsToDevicePixels="True">
+		<TextBlock x:Name="TbMousePos" Text="f  : 1kHz&#xA;A : 20dB" VerticalAlignment="Top" Margin="0,0,34,0" Height="30" HorizontalAlignment="Right"/>
+		<ScrollViewer x:Name="ScrOutExp" Margin="50,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center" HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Disabled">
+			<LaTeX:FormulaControl x:Name="OutputExpression" Formula="\infty" Margin="0" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Scale="25"/>
+		</ScrollViewer>
+		<Border x:Name="Border" Margin="30,30,30.334,29.667" SnapsToDevicePixels="True" BorderThickness="3" BorderBrush="Black" Background="White" ClipToBounds="True" MouseDown="Canvas_MouseDown" MouseUp="Canvas_MouseUp" MouseWheel="Canvas_MouseWheel" Grid.ColumnSpan="2"/>
+		<TextBlock x:Name="TbDescF" HorizontalAlignment="Right" Margin="0,0,5.334,29.667" TextWrapping="Wrap" Text="f/Hz" VerticalAlignment="Bottom" ClipToBounds="True" Grid.Column="1"/>
+		<TextBlock x:Name="TbDescA" HorizontalAlignment="Left" Margin="30,14,0,0" TextWrapping="Wrap" Text="A/dB" VerticalAlignment="Top" ClipToBounds="True"/>
+		<Canvas x:Name="CvsBase" Margin="0,0,0.334,-0.333" ClipToBounds="True" IsHitTestVisible="False" Grid.ColumnSpan="2"/>
+		<Canvas x:Name="CvsGrid" ClipToBounds="True" Margin="32,32,32.334,31.667" IsHitTestVisible="False" Grid.ColumnSpan="2"/>
+		<Canvas x:Name="CvsGraph" ClipToBounds="True" Margin="32,32,32.334,31.667" IsHitTestVisible="False" Grid.ColumnSpan="2"/>
 	</Grid>
 </Window>

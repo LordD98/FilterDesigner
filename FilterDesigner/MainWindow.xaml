@@ -9,14 +9,21 @@
         Title="Filter Designer" 
 		Height="500" Width="900" 
 		MinHeight="404"
-		Icon="Symbol.png" Focusable="True" KeyDown="MainWindow_KeyDown" Closed="MainWindow_Closed">
+		Icon="Symbol.png" 
+		Focusable="True" 
+		KeyDown="MainWindow_KeyDown" 
+		Closed="MainWindow_Closed">
 	<Window.CommandBindings>
-		<CommandBinding Command="Save" Executed = "Save_Executed"/>
-		<CommandBinding Command="Open" Executed = "Open_Executed"/>
+		<CommandBinding Command="Save" Executed="Save_Executed"/>
+		<CommandBinding Command="Open" Executed="Open_Executed"/>
+		<CommandBinding Command="{x:Static local:MainWindow.Import}" Executed="Import_Executed"/>
+		<CommandBinding Command="{x:Static local:MainWindow.Export}" Executed="Export_Executed"/>
 		<CommandBinding Command="{x:Static local:MainWindow.Clear}" Executed="Clear_Executed"/>
 	</Window.CommandBindings>
 	<Window.InputBindings>
 		<KeyBinding Key="Delete" Modifiers="Ctrl" Command="{x:Static local:MainWindow.Clear}"/>
+		<KeyBinding Key="I" Modifiers="Ctrl" Command="{x:Static local:MainWindow.Import}"/>
+		<KeyBinding Key="E" Modifiers="Ctrl" Command="{x:Static local:MainWindow.Export}"/>
 	</Window.InputBindings>
 	<Grid x:Name="mainGrid">
 		<Grid.RowDefinitions>
@@ -30,8 +37,11 @@
 		</Grid.ColumnDefinitions>
 		<Menu x:Name="mainMenu" Margin="0" Grid.ColumnSpan="3">
 			<MenuItem Header="File">
-				<MenuItem x:Name="menuItemSave" Header="Save" Command="Save"/>
-				<MenuItem x:Name="menuItemLoad" Header="Load" Command="Open"/>
+				<MenuItem x:Name="menuItemSave" Header="Quick-Save" Command="Save"/>
+				<MenuItem x:Name="menuItemLoad" Header="Quick-Load" Command="Open"/>
+				<Separator/>
+				<MenuItem Header="Export" Command="{x:Static local:MainWindow.Export}" InputGestureText="Strg+E"/>
+				<MenuItem Header="Import" Command="{x:Static local:MainWindow.Import}" InputGestureText="Strg+I"/>
 			</MenuItem>
 			<MenuItem Header="Edit">
 				<MenuItem x:Name="menuItemClear" Header="Clear" Command="{x:Static local:MainWindow.Clear}" InputGestureText="Ctrl+Del"/>

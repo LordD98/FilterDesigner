@@ -29,13 +29,16 @@ namespace FilterDesigner
 		double xMin = 0;    // 10^-0.99 Hz
 		double xMax = 7;    // 10^-0.01 Hz
 
+		private int outputCycle = 0;
 		LiveComponentValueDialog lcvd;
 		public Expression Function { get; set; }
 
 		private Point mouseClick = new Point(-1, -1);
+		private bool selectionHorizontal = false;
 
 		private double lastDrawWidth = 0;
 		private double lastDrawHeight = 0;
+		public bool ComponentChangeDialogDocked = true;
 		Thread FunctionThread;
 
 		public OutputWindow(Expression function)
@@ -45,22 +48,45 @@ namespace FilterDesigner
 			InitializeComponent();
 			CvsGraph.Visibility = Visibility.Visible;
 			OutputExpression.Visibility = Visibility.Collapsed;
-			if(!Function.IsConst() || !double.IsPositiveInfinity((Function as ConstExpression).Value))
-			{
-				OutputExpression.Formula = Function.EvaluateLaTeX();
-			}
-			else
-			{
-				OutputExpression.Formula = @"\infty";
-			}
-
-			lcvd = new LiveComponentValueDialog(MainWindow.allComponents, this);
-			lcvd.Show();
+			ComputeFormula();
 
 			DispatcherTimer timer = new DispatcherTimer();
 			timer.Tick += Timer_Tick;
 			timer.Interval = TimeSpan.FromMilliseconds(500);
 			timer.Start();
+		}
+
+		public void Update()
+		{
+			if(outputCycle % 3 == 0)
+			{
+				DrawFunction();
+			}
+			else
+			{
+				ComputeFormula();
+			}
+		}
+
+		public void ComputeFormula()
+		{
+			Expression result; 
+			if(outputCycle % 3 == 0)
+			{
+				result = Function;
+			}
+			else
+			{
+				result = Function?.EvaluateToConst()?.ToStandardForm();
+			}
+			if(!result.IsConst() || !double.IsPositiveInfinity((Function as ConstExpression)?.Value ?? 0))
+			{
+				OutputExpression.Formula = result.EvaluateLaTeX();
+			}
+			else
+			{
+				OutputExpression.Formula = @"\infty";
+			}
 		}
 
 		public void Draw()
@@ -164,7 +190,7 @@ namespace FilterDesigner
 					desc.Text = string.Format("{0:###}", 20 * magnitude);
 				}
 				CvsBase.Children.Add(desc);
-				Canvas.SetTop(desc, y + Canvas.GetTop(CvsGraph) - 10);
+				Canvas.SetTop(desc, y + CvsGraph.Margin.Top - 10);
 				if(magnitude >= 0)
 				{
 					Canvas.SetLeft(desc, 8);
@@ -199,7 +225,7 @@ namespace FilterDesigner
 						desc.Text = string.Format("{0:###}", 20 * magnitude);
 					}
 					CvsBase.Children.Add(desc);
-					Canvas.SetTop(desc, y + Canvas.GetTop(CvsGrid) - 10);
+					Canvas.SetTop(desc, y + CvsGrid.Margin.Top - 10);
 					if(magnitude >= 0)
 					{
 						Canvas.SetLeft(desc, 8);
@@ -256,8 +282,8 @@ namespace FilterDesigner
 					});
 					TextBlock desc = new TextBlock() { Text = DoubleToText(frequency) };
 					CvsBase.Children.Add(desc);
-					Canvas.SetLeft(desc, x + Canvas.GetLeft(CvsGraph) - 5);
-					Canvas.SetTop(desc, CvsBase.ActualHeight - Canvas.GetLeft(CvsGraph) + 5);
+					Canvas.SetLeft(desc, x + CvsGraph.Margin.Left - 5);
+					Canvas.SetTop(desc, CvsBase.ActualHeight - CvsGraph.Margin.Left + 5);
 				}
 			}
 
@@ -320,7 +346,9 @@ namespace FilterDesigner
 
 		public double FrequencyToXCoordinate(double freq)
 		{
-			if(xMin == xMax)
+			if(freq == 0)
+				return 0;
+			else if(double.IsInfinity(xMin) || double.IsInfinity(xMax) || (xMin == xMax))
 				return CvsGraph.ActualWidth / 2;
 			else
 				return (Math.Log10(freq) - xMin) / (xMax - xMin) * CvsGraph.ActualWidth;
@@ -328,16 +356,33 @@ namespace FilterDesigner
 
 		public double XCoordinateToFrequency(double x)
 		{
-			return Math.Pow(10, x / CvsGraph.ActualWidth * (xMax - xMin) + xMin);
+			double result = Math.Pow(10, x / CvsGraph.ActualWidth * (xMax - xMin) + xMin);
+			if(double.IsNaN(result) || double.IsInfinity(result))
+				result = double.MaxValue;
+			if(result == 0)
+				result = double.Epsilon;
+			return result;
 		}
 
 		private void OutputWindow_KeyDown(object sender, KeyEventArgs e)
 		{
-			if(e.Key == Key.Enter)
+			if(e.Key == Key.LeftShift)
 			{
-				if(OutputExpression.Visibility == Visibility.Collapsed)
+				if(CvsBase.Children.Contains(selectionRectangle))
 				{
+					selectionHorizontal = !selectionHorizontal;
+				}
+			}
+			else if(e.Key == Key.Enter)
+			{
+				if(outputCycle % 3 != 2)
+				{
+					ComputeFormula();
+					ScrOutExp.Visibility = Visibility.Visible;
 					OutputExpression.Visibility = Visibility.Visible;
+					TbDescF.Visibility = Visibility.Collapsed;
+					TbDescA.Visibility = Visibility.Collapsed;
+					TbMousePos.Visibility = Visibility.Collapsed;
 					Border.Visibility = Visibility.Collapsed;
 					CvsBase.Visibility = Visibility.Collapsed;
 					CvsGraph.Visibility = Visibility.Collapsed;
@@ -345,26 +390,50 @@ namespace FilterDesigner
 				}
 				else
 				{
+					ScrOutExp.Visibility = Visibility.Collapsed;
 					OutputExpression.Visibility = Visibility.Collapsed;
+					TbDescF.Visibility = Visibility.Visible;
+					TbDescA.Visibility = Visibility.Visible;
+					TbMousePos.Visibility = Visibility.Visible;
 					Border.Visibility = Visibility.Visible;
 					CvsBase.Visibility = Visibility.Visible;
 					CvsGraph.Visibility = Visibility.Visible;
 					CvsGrid.Visibility = Visibility.Visible;
 				}
+				outputCycle++;
+			}
+			else if(e.Key == Key.R)
+			{
+				if(e.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Control))
+				{
+					xMin = 0;
+					xMax = 7;
+					yMin = -120;
+					yMax = 20;
+				}
+				Draw();
 			}
 			else if(e.Key == Key.D)
 			{
-				Draw();
+				if(lcvd.WindowState == WindowState.Minimized)
+				{
+					lcvd.WindowState = WindowState.Normal;
+				}
+				DockLCVD();
+				ComponentChangeDialogDocked = true;
 			}
 		}
 
 		private void OutputWindow_SizeChanged(object sender, SizeChangedEventArgs e)
 		{
-			CvsGraph.Width = Border.ActualWidth - 4;
-			CvsGraph.Height = Border.ActualHeight - 4;
-			CvsGrid.Width = Border.ActualWidth - 4;
-			CvsGrid.Height = Border.ActualHeight - 4;
-			Draw();
+			if(Border.Visibility != Visibility.Collapsed)
+			{
+				CvsGraph.Width = Border.ActualWidth - 4;
+				CvsGraph.Height = Border.ActualHeight - 4;
+				CvsGrid.Width = Border.ActualWidth - 4;
+				CvsGrid.Height = Border.ActualHeight - 4;
+				Draw();
+			}
 		}
 
 
@@ -378,6 +447,15 @@ namespace FilterDesigner
 				if(source != null)
 					source.AddHook(HwndMessageHook);
 			}
+
+			lcvd = new LiveComponentValueDialog(MainWindow.allComponents, this)
+			{
+				Left = Left + ActualWidth - 14,
+				Top = Top,
+				Height = ActualHeight
+			};
+			//lcvd.BringIntoView();
+			lcvd.Show();
 		}
 
 		private IntPtr HwndMessageHook(IntPtr wnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -563,7 +641,7 @@ namespace FilterDesigner
 
 		private void OutputWindow_Closed(object sender, EventArgs e)
 		{
-			lcvd.Close();
+			lcvd?.Close();
 		}
 
 		private void Canvas_MouseDown(object sender, MouseButtonEventArgs e)
@@ -591,38 +669,62 @@ namespace FilterDesigner
 
 		private void Canvas_MouseUp(object sender, MouseButtonEventArgs e)
 		{
-			Point newMousePos = e.GetPosition(CvsGraph);
-			if(selectionRectangle != null && CvsBase.Children.Contains(selectionRectangle))
+			if(e.ChangedButton == MouseButton.Left)
 			{
-				CvsBase.Children.Remove(selectionRectangle);
-			}
-			if(mouseClick.X != -1 && mouseClick.Y != -1)
-			{
-				double leftX = Math.Min(mouseClick.X, newMousePos.X);
-				double rightX = Math.Max(mouseClick.X, newMousePos.X);
-				double lowY = Math.Max(mouseClick.Y, newMousePos.Y);
-				double highY = Math.Min(mouseClick.Y, newMousePos.Y);
-				double newXMin = xMin;
-				double newXMax = xMax;
-				double newYMin = yMin;
-				double newYMax = yMax;
-				if(leftX != rightX && leftX > 0)
+				Point newMousePos = e.GetPosition(CvsGraph);
+				if(selectionRectangle != null && CvsBase.Children.Contains(selectionRectangle))
 				{
-					newXMin = Math.Log10(XCoordinateToFrequency(leftX));
-					newXMax = Math.Log10(XCoordinateToFrequency(rightX));
+					CvsBase.Children.Remove(selectionRectangle);
 				}
-				if(lowY != highY && highY > 0)
+				if(mouseClick.X != -1 && mouseClick.Y != -1)
 				{
-					newYMin = YCoordinateToMagnitude(lowY);
-					newYMax = YCoordinateToMagnitude(highY);
+					double leftX = Math.Min(mouseClick.X, newMousePos.X);
+					double rightX = Math.Max(mouseClick.X, newMousePos.X);
+					double lowY = Math.Max(mouseClick.Y, newMousePos.Y);
+					double highY = Math.Min(mouseClick.Y, newMousePos.Y);
+					double newXMin = xMin;
+					double newXMax = xMax;
+					double newYMin = yMin;
+					double newYMax = yMax;
+					if(leftX != rightX && leftX > 0)
+					{
+						newXMin = Math.Log10(XCoordinateToFrequency(leftX));
+						newXMax = Math.Log10(XCoordinateToFrequency(rightX));
+					}
+					if(lowY != highY && highY > 0)
+					{
+						newYMin = YCoordinateToMagnitude(lowY);
+						newYMax = YCoordinateToMagnitude(highY);
+					}
+					if(double.IsInfinity(newXMin) || double.IsNaN(newXMin))
+					{
+						newXMin = double.MinValue;
+					}
+					if(double.IsInfinity(newXMax) || double.IsNaN(newXMax))
+					{
+						newXMax = double.MaxValue;
+					}
+					if(Keyboard.IsKeyDown(Key.LeftCtrl))
+					{
+						if(selectionHorizontal)
+						{
+							newYMin = yMin;
+							newYMax = yMax;
+						}
+						else
+						{
+							newXMin = xMin;
+							newXMax = xMax;
+						}
+					}
+					xMin = newXMin;
+					xMax = newXMax;
+					yMin = newYMin;
+					yMax = newYMax;
+					mouseClick.X = -1;
+					mouseClick.Y = -1;
+					Draw();
 				}
-				xMin = newXMin;
-				xMax = newXMax;
-				yMin = newYMin;
-				yMax = newYMax;
-				mouseClick.X = -1;
-				mouseClick.Y = -1;
-				Draw();
 			}
 		}
 
@@ -647,8 +749,36 @@ namespace FilterDesigner
 				}
 				selectionRectangle.Width = Math.Abs(mouse.X - mouseClick.X);
 				selectionRectangle.Height = Math.Abs(mouse.Y - mouseClick.Y);
-				Canvas.SetLeft(selectionRectangle, Math.Min(mouseClick.X, mouse.X) + Canvas.GetLeft(CvsGraph));
-				Canvas.SetTop(selectionRectangle, Math.Min(mouseClick.Y, mouse.Y) + Canvas.GetTop(CvsGraph));
+				if(Keyboard.IsKeyDown(Key.LeftCtrl))
+				{
+					//if(selectionRectangle.Width > selectionRectangle.Height)
+					if(selectionHorizontal)
+					{
+						selectionRectangle.Height = 1;
+						Canvas.SetLeft(selectionRectangle, Math.Min(mouseClick.X, mouse.X) + CvsGraph.Margin.Left);
+						Canvas.SetTop(selectionRectangle, mouseClick.Y + CvsGraph.Margin.Top);
+
+						selectionRectangle.Height = CvsGraph.Height;
+						Canvas.SetLeft(selectionRectangle, Math.Min(mouseClick.X, mouse.X) + CvsGraph.Margin.Left);
+						Canvas.SetTop(selectionRectangle, CvsGraph.Margin.Top);
+
+					}
+					else
+					{
+						selectionRectangle.Width = 1;
+						Canvas.SetTop(selectionRectangle, Math.Min(mouseClick.Y, mouse.Y) + CvsGraph.Margin.Top);
+						Canvas.SetLeft(selectionRectangle, mouseClick.X + CvsGraph.Margin.Left);
+
+						selectionRectangle.Width = CvsGraph.Width;
+						Canvas.SetTop(selectionRectangle, Math.Min(mouseClick.Y, mouse.Y) + CvsGraph.Margin.Top);
+						Canvas.SetLeft(selectionRectangle, CvsGraph.Margin.Left);
+					}
+				}
+				else
+				{
+					Canvas.SetLeft(selectionRectangle, Math.Min(mouseClick.X, mouse.X) + CvsGraph.Margin.Left);
+					Canvas.SetTop(selectionRectangle, Math.Min(mouseClick.Y, mouse.Y) + CvsGraph.Margin.Top);
+				}
 			}
 			else
 			{
@@ -671,6 +801,11 @@ namespace FilterDesigner
 
 			double xMin2 = Math.Log10(currentFreq) - factor * currentPos.X / CvsGraph.ActualWidth * dx;
 			double xMax2 = xMin2 + factor * dx;
+			if(currentFreq == 0 || double.IsInfinity(currentFreq) )
+			{
+				xMin2 = double.MinValue;
+				xMax2 = double.MaxValue;
+			}
 			double yMin2 = currentMagn - factor * (1 - currentPos.Y / CvsGraph.ActualHeight) * dy;
 			double yMax2 = yMin2 + factor * dy;
 
@@ -679,6 +814,42 @@ namespace FilterDesigner
 			yMin = yMin2;
 			yMax = yMax2;
 			Draw();
+		}
+
+		private void OutputWindow_Activated(object sender, EventArgs e)
+		{
+			//lcvd?.BringIntoView();
+			if(lcvd != null)
+			{
+				//if(lcvd.WindowState == WindowState.Minimized)
+				//{
+				//	lcvd.WindowState = WindowState.Normal;
+				//}
+				//lcvd.Activate();
+				//Focus();
+				lcvd.Topmost = true;
+				lcvd.Topmost = false;
+			}
+			//Activate();
+		}
+
+		private void OutputWindow_LocationChanged(object sender, EventArgs e)
+		{
+			if(ComponentChangeDialogDocked)
+			{
+				DockLCVD();
+			}
+		}
+
+		private void DockLCVD()
+		{
+			if(lcvd != null)
+			{
+				lcvd.Width = 300;
+				lcvd.Height = ActualHeight;
+				lcvd.Left = Left + ActualWidth - 14;
+				lcvd.Top = Top;
+			}
 		}
 	}
 }

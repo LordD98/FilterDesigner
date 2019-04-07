@@ -129,7 +129,7 @@ namespace FilterDesigner
 			{
 				//Green
 				(GridComponents.Children[(int)(sender as TextBox).Resources[0]] as Border).BorderBrush = Brushes.Green;
-				Host.DrawFunction();
+				Host.Update();
 			}
 			else
 			{
@@ -176,6 +176,14 @@ namespace FilterDesigner
 					break;
 			}
 			return result;
+		}
+
+		private void LiveComponentValueDialog_StateChanged(object sender, EventArgs e)
+		{
+			if(WindowState != WindowState.Normal)
+			{
+				Host.ComponentChangeDialogDocked = false;
+			}
 		}
 	}
 }

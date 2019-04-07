@@ -17,10 +17,13 @@ using static FilterDesigner.MainWindow;
 namespace FilterDesigner
 {
 	// TODO:
-	// Add window to plot transfer function, change values on the fly
+	// Rectangle Selecting: on Move+Ctrl snap to bigger difference
 	// Factor out complex expressions by polynomial division
 	// Merge branchpoints, delete lines and split nets
 	//
+	// Bugs:
+	// Zoom in deep, then be able to zoom out again
+	// 
 	// Less important:
 	// Parse 1k2 (as example)
 	// Add copy to clipboard button in OutputWindow
@@ -44,6 +47,8 @@ namespace FilterDesigner
 		public static bool clickedComponent = false;    // Indicates wether a component is clicked
 														// before canvas click executes
 		public static RoutedCommand Clear = new RoutedUICommand("Clear", "Clear", typeof(MainWindow));
+		public static RoutedCommand Export = new RoutedUICommand("Export", "Export", typeof(MainWindow));
+		public static RoutedCommand Import = new RoutedUICommand("Import", "Import", typeof(MainWindow));
 
 		public MainWindow()
 		{
@@ -120,7 +125,11 @@ namespace FilterDesigner
 			{
 				outputWindow.Close();
 			}
-			outputWindow = new OutputWindow(result);
+			outputWindow = new OutputWindow(result)
+			{
+				Left = Left + 30,
+				Top = Top + 30
+			};
 			outputWindow.Show();
 		}
 
@@ -539,8 +548,10 @@ namespace FilterDesigner
 				}
 				outputWindow = new OutputWindow(result)
 				{
-					Owner = this
-				};
+					Owner = this,
+					Left = Left + 20,
+					Top = Top + 20
+			};
 				outputWindow.Show();
 			}
 		}
@@ -673,6 +684,7 @@ namespace FilterDesigner
 				{
 					newComponent.Rotation = AddComponentRotation;
 					newComponent.Draw();
+					allComponents.Add(newComponent);
 				}
 			}
 		}
@@ -698,7 +710,7 @@ namespace FilterDesigner
 			newComponent.Draw();
 		}
 
-		private void Save_Executed(object sender, RoutedEventArgs e)
+		private void SaveToFile(string file)
 		{
 			Net.CancelCurrentLine();
 			string setting = "";
@@ -721,52 +733,88 @@ namespace FilterDesigner
 			setting += $"{cmbYZNet1.SelectedIndex},";
 			setting += $"{cmbYZNet2.SelectedIndex}";
 			//tbxResult.Text = setting;
-			File.WriteAllText("Settings.txt", setting);
+			File.WriteAllText(file, setting);
+		}
+
+		private void LoadFromFile(string file)
+		{
+			if(File.Exists(file))
+			{
+				Clear_Executed();
+				string setting = File.ReadAllText(file).Replace("\r", "");
+				int i = 0;
+				while(i < setting.Length)
+				{
+					int endIndex = setting.IndexOf('\n', i);
+					if(endIndex == -1) endIndex = setting.Length - 1;
+					if(endIndex < setting.Length - 2)
+					{
+						if(setting[endIndex + 1] == '{')
+						{
+							endIndex = setting.IndexOf('}', i);
+						}
+					}
+					switch(setting[i])
+					{
+						case 'N':
+							Net.ImportNet(setting.Substring(i, endIndex - i + 1));
+							break;
+						case 'R':
+						case 'L':
+						case 'C':
+							Component comp = Component.ImportComponent(setting.Substring(i, endIndex - i + 1).Replace("\n", ""));
+							if(comp != null)
+							{
+								allComponents.Add(comp);
+								comp.Draw();
+							}
+							break;
+						case 'X':
+							string[] config = setting.Substring(i + 2, endIndex - i - 1).Replace("\n", "").Split(':');
+							cmbOutputMode.SelectedIndex = int.Parse(config[0]);
+							string[] subConfig = config[1].Split(',');
+							cmbTransferNetA1.SelectedIndex = int.Parse(subConfig[0]);
+							cmbTransferNetA2.SelectedIndex = int.Parse(subConfig[1]);
+							cmbTransferNetB1.SelectedIndex = int.Parse(subConfig[2]);
+							cmbTransferNetB2.SelectedIndex = int.Parse(subConfig[3]);
+							subConfig = config[2].Split(',');
+							cmbYZNet1.SelectedIndex = int.Parse(subConfig[0]);
+							cmbYZNet2.SelectedIndex = int.Parse(subConfig[1]);
+							break;
+					}
+					i = endIndex + 1;
+				}
+			}
+		}
+
+		private void Save_Executed(object sender, RoutedEventArgs e)
+		{
+			SaveToFile("Settings.txt");
 		}
 
 		private void Open_Executed(object sender, RoutedEventArgs e)
 		{
-			Clear_Executed();
-			string setting = File.ReadAllText("Settings.txt").Replace("\r", "");
-			int i = 0;
-			while(i < setting.Length)
-			{
-				int endIndex = setting.IndexOf('\n', i);
-				if(endIndex == -1) endIndex = setting.Length - 1;
-				if(endIndex < setting.Length - 2)
-				{
-					if(setting[endIndex + 1] == '{')
-					{
-						endIndex = setting.IndexOf('}', i);
-					}
-				}
-				switch(setting[i])
-				{
-					case 'N':
-						Net.ImportNet(setting.Substring(i, endIndex - i + 1));
-						break;
-					case 'R':
-					case 'L':
-					case 'C':
-						Component comp = Component.ImportComponent(setting.Substring(i, endIndex - i + 1).Replace("\n", ""));
-						comp.Draw();
-						break;
-					case 'X':
-						string[] config = setting.Substring(i + 2, endIndex - i - 1).Replace("\n", "").Split(':');
-						cmbOutputMode.SelectedIndex = int.Parse(config[0]);
-						string[] subConfig = config[1].Split(',');
-						cmbTransferNetA1.SelectedIndex = int.Parse(subConfig[0]);
-						cmbTransferNetA2.SelectedIndex = int.Parse(subConfig[1]);
-						cmbTransferNetB1.SelectedIndex = int.Parse(subConfig[2]);
-						cmbTransferNetB2.SelectedIndex = int.Parse(subConfig[3]);
-						subConfig = config[2].Split(',');
-						cmbYZNet1.SelectedIndex = int.Parse(subConfig[0]);
-						cmbYZNet2.SelectedIndex = int.Parse(subConfig[1]);
-						break;
-				}
-				i = endIndex + 1;
-			}
+			LoadFromFile("Settings.txt");
+		}
 
+		private void Export_Executed(object sender, RoutedEventArgs e)
+		{
+			Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
+			{
+				InitialDirectory = AppDomain.CurrentDomain.BaseDirectory
+			};
+			if(dialog.ShowDialog() ?? false)
+				SaveToFile(dialog.FileName);
+		}
+
+		private void Import_Executed(object sender, RoutedEventArgs e)
+		{
+			Microsoft.Win32.OpenFileDialog dialog = new Microsoft.Win32.OpenFileDialog()
+			{
+				InitialDirectory = AppDomain.CurrentDomain.BaseDirectory
+			};
+			if(dialog.ShowDialog() ?? false)
+				LoadFromFile(dialog.FileName);
 		}
 
 		private void Clear_Executed(object sender = null, RoutedEventArgs e = null)
@@ -2079,7 +2127,7 @@ namespace FilterDesigner
 		public Net NetA { get; set; }
 		public Net NetB { get; set; }
 		//public Impedance Impedance { get; }
-
+			
 		protected Component(string name)
 		{
 			Name = name;
@@ -2100,7 +2148,7 @@ namespace FilterDesigner
 			PortB = new ConnectionPort();
 			PortA.MouseLeftButtonDown += (x, y) => Net.NetPort_Click(this, NetPort.A, y);
 			PortB.MouseLeftButtonDown += (x, y) => Net.NetPort_Click(this, NetPort.B, y);
-			MainWindow.allComponents?.Add(this);
+			//MainWindow.allComponents?.Add(this);
 		}
 
 		protected Component(string name, double x, double y) : this(name)
@@ -2344,7 +2392,11 @@ namespace FilterDesigner
 
 		public static string PrintValue(double value)
 		{
-			int exponent = ((int)Math.Floor(Math.Log10(value) / 3)) * 3;
+			if(value == 0)
+				return "0";
+			//if(value < 0)
+			//	result += "-";
+			int exponent = ((int)Math.Floor(Math.Log10(Math.Abs(value)) / 3)) * 3;
 			double mantisse = Math.Round(value / Math.Pow(10, exponent), 2, MidpointRounding.AwayFromZero);
 			string result = "";
 			if(mantisse != 1.0)
@@ -2402,6 +2454,26 @@ namespace FilterDesigner
 		}
 
 		public abstract string GetValueStr();
+		public static string GetValueStr(ComponentType type, double value)
+		{
+			string result = PrintValue(value);
+			switch(type)
+			{
+				default:
+				case ComponentType.None:
+					break;
+				case ComponentType.Resistor:
+					result += "\u03A9";
+					break;
+				case ComponentType.Capacitor:
+					result += "F";
+					break;
+				case ComponentType.Inductor:
+					result += "H";
+					break;
+			}
+			return result;
+		}
 
 		public abstract string GetImpedanceStr();
 
@@ -2806,7 +2878,7 @@ namespace FilterDesigner
 		{
 			Resistance = resistance;
 		}
-
+		
 		public override string ExportComponent()
 		{
 			return $"R;{Name};{resistance}" + base.ExportComponent();

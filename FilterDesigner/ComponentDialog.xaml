@@ -22,7 +22,7 @@
 			</DockPanel>
 			<DockPanel Margin="5,0">
 				<Label Content="Type" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" SnapsToDevicePixels="True" Width="50"/>
-				<ComboBox x:Name="cmbType" Margin="0" SnapsToDevicePixels="True"/>
+				<ComboBox x:Name="cmbType" Margin="0" SnapsToDevicePixels="True" SelectionChanged="CmbType_SelectionChanged"/>
 			</DockPanel>
 			<UniformGrid Columns="2" Margin="5,5,5,0">
 				<CheckBox x:Name="chkShowName" Content="Show Name" IsChecked="True" Grid.Column="0" HorizontalAlignment="Center"/>

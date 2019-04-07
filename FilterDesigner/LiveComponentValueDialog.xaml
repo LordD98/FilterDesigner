@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FilterDesigner"
         mc:Ignorable="d"
-        Title="Change Component Values" Height="450" Width="300" Icon="Symbol.png">
+        Title="Change Component Values" Height="450" Width="300" Icon="Symbol.png" StateChanged="LiveComponentValueDialog_StateChanged">
 	<Border BorderBrush="#FF484848" BorderThickness="1" Margin="1">
 		<ScrollViewer>
 			<Grid x:Name="GridComponents" ScrollViewer.CanContentScroll="True" Margin="1" SnapsToDevicePixels="True" ClipToBounds="True">

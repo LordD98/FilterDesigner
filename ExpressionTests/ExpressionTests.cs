@@ -353,6 +353,65 @@ namespace FilterDesigner.UnitTests
 			Assert.AreEqual(result2, 252);
 			Assert.AreEqual(result3, 7.0 / 3.0 + 504);
 		}
+
+		[TestMethod]
+		public void ComplicatedBug_Test1()
+		{
+			Expression s = Expression.S;
+			ComponentExpression C1 = new ComponentExpression("C1"); 
+			ComponentExpression R1 = new ComponentExpression("R1"); 
+			ComponentExpression R2 = new ComponentExpression("R2"); 
+			ComponentExpression R3 = new ComponentExpression("R3");
+			Expression exp1 = (1 / (s * C1)) / (R2 + 1 / (s * C1)) * (1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3))) / (R1 + 1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3)));
+			Expression exp2 = R3 / (s * C1 * (R1 * R2 + R1 * R3 + R2 * R3) + R1 + R3);
+			Expression exp3 = exp1.ToStandardForm();	// Issue here, see debug
+
+			Assert.AreEqual(exp1, exp2);
+			Assert.AreEqual(exp1, exp3);
+			Assert.AreEqual(exp2, exp3);
+			Assert.AreEqual(exp3.Evaluate(), exp2.Evaluate());
+		}
+
+		[TestMethod]
+		public void ComplicatedBug_Test2()
+		{
+			Expression s = Expression.S;
+			Expression s2 = new S_Block(2);
+			Expression s3 = new S_Block(3);
+			Expression s4 = new S_Block(4);
+			Expression exp1 = (1 / s) / (1 + 1 / s) * (1 / (1 / (1 + 1 / s) + 1)) / (1 + 1 / (1 / (1 + 1 / s) + 1));
+			Expression exp2 = 1 / (s * 1 * (1 * 1 + 1 * 1 + 1 * 1) + 1 + 1);
+			Expression exp3 = exp1.ToStandardForm();
+			Expression exp4 = (2 * s3 + 3 * s2 + s) / (6 * s4 + 13 * s3 + 9 * s2 + 2 * s);
+			Assert.AreEqual(exp1, exp2);
+			Assert.AreEqual(exp1, exp3);
+			Assert.AreEqual(exp2, exp3);
+			Assert.AreEqual(exp3, exp4);
+		}
+
+		[TestMethod]
+		public void ComplicatedBug_Test3()
+		{
+			Expression s = Expression.S;
+			Expression s2 = new S_Block(2);
+			Expression s3 = new S_Block(3);
+			Expression s4 = new S_Block(4);
+			ComponentExpression C1 = new ComponentExpression("C1");
+			ComponentExpression R1 = new ComponentExpression("R1");
+			ComponentExpression R2 = new ComponentExpression("R2");
+			ComponentExpression R3 = new ComponentExpression("R3");
+
+			Expression exp1 = (1 / (s * C1)) / (R2 + 1 / (s * C1)) * 1 / (1 / (R2 + 1 / (s * C1)) + 1 / (R3));
+			Expression exp2 = R3 / (s * (R3 * C1 + R2 * C1) + 1);
+			Expression exp3 = (s * C1 * R2 * R3 + R3) / (s2 * (C1 * C1 * R2 * R3 + C1 * C1 * R2 * R2) + s * (C1 * R2 + C1 * R2 + C1 * R3) + 1);
+
+			Expression res1 = exp1.ToStandardForm();
+
+			Assert.AreEqual(exp1, exp2);
+			Assert.AreEqual(res1, exp2);
+			Assert.AreNotEqual(res1.Evaluate(), exp3.Evaluate());
+			Assert.AreEqual(res1.Evaluate(), exp2.Evaluate());
+		}
 	}
 
 	[TestClass]

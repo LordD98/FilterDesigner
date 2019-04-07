@@ -22,7 +22,7 @@ namespace FilterDesigner
     {
 		public bool Modified = false;
 		public bool TypeModified = false;
-
+		
 		private ComponentType oldType;
 		public ComponentType ResultType
 		{
@@ -93,7 +93,8 @@ namespace FilterDesigner
 		private void BtnReset_Click(object sender = null, RoutedEventArgs e = null)
 		{
 			tbxName.Text = oldName;
-			tbxValue.Text = oldValue.ToString();
+			//tbxValue.Text = Component.PrintValue(oldValue);
+			tbxValue.Text = Component.GetValueStr(oldType, oldValue);
 			cmbType.SelectedItem = oldType;
 			chkShowName.IsChecked = oldShowName;
 			chkShowValue.IsChecked = oldShowValue;
@@ -175,6 +176,11 @@ namespace FilterDesigner
 			{
 				BtnOk_Click(null, null);
 			}
+		}
+
+		private void CmbType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+		{
+			tbxValue.Text = Component.GetValueStr(ResultType, ResultValue);
 		}
 	}
 }
